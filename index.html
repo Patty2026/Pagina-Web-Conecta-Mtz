@@ -3,143 +3,173 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Conecta Mtz | Plataforma Digital</title>
+  <meta name="description" content="Conecta Martínez: plataforma web moderna para gestión, comunicación, servicios, portafolio y atención ciudadana." />
+  <title>Conecta Mtz | Plataforma Web Integral</title>
   <link rel="stylesheet" href="styles.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 </head>
 <body>
-  <header class="header">
-    <nav class="navbar container">
-      <div class="logo">Conecta <span>Mtz</span></div>
-      <button class="menu-toggle" id="menuToggle">☰</button>
-      <ul class="nav-links" id="navLinks">
-        <li><a href="#inicio">Inicio</a></li>
-        <li><a href="#proyecto">Proyecto</a></li>
-        <li><a href="#servicios">Servicios</a></li>
-        <li><a href="#beneficios">Beneficios</a></li>
-        <li><a href="#contacto">Contacto</a></li>
-      </ul>
-    </nav>
-  </header>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-icon">CM</div>
+        <div>
+          <strong>Conecta Mtz</strong>
+          <small>Plataforma digital</small>
+        </div>
+      </div>
+      <nav class="side-nav">
+        <a href="#inicio">Inicio</a>
+        <a href="#proyecto">Proyecto</a>
+        <a href="#servicios">Servicios</a>
+        <a href="#portafolio">Portafolio</a>
+        <a href="#dashboard">Dashboard</a>
+        <a href="#contacto">Contacto</a>
+      </nav>
+      <div class="sidebar-card">
+        <span>Estado</span>
+        <strong>Versión prototipo</strong>
+        <p>Lista para publicar con GitHub Pages y ampliar con Firebase.</p>
+      </div>
+    </aside>
 
-  <main>
-    <section class="hero" id="inicio">
-      <div class="container hero-content">
-        <div class="hero-text">
-          <p class="tag">Proyecto Integrador</p>
-          <h1>Conecta Martínez</h1>
-          <h2>Plataforma web para fortalecer la comunicación y organización digital</h2>
-          <p>
-            Diseñar una solución web funcional, moderna y accesible para mejorar la gestión de información,
-            facilitar la interacción con usuarios y presentar de manera clara los servicios del proyecto.
-          </p>
-          <div class="hero-buttons">
-            <a href="#proyecto" class="btn primary">Conocer proyecto</a>
-            <a href="#contacto" class="btn secondary">Solicitar información</a>
+    <div class="main-area">
+      <header class="topbar">
+        <button class="icon-btn" id="menuToggle">☰</button>
+        <div class="search-box">Buscar módulos, servicios o reportes...</div>
+        <button class="btn ghost" id="openLogin">Acceso administrativo</button>
+      </header>
+
+      <main>
+        <section class="hero" id="inicio">
+          <div class="hero-copy">
+            <span class="pill">Proyecto Integrador · Conecta Martínez</span>
+            <h1>Gestionar servicios, comunicación y atención desde una plataforma moderna.</h1>
+            <p>Conecta Mtz integra diseño profesional, formulario funcional, galería, panel de acceso, mapa interactivo, chat de atención y dashboard administrativo inicial.</p>
+            <div class="hero-actions">
+              <a class="btn primary" href="#dashboard">Ver dashboard</a>
+              <a class="btn secondary" href="#contacto">Enviar solicitud</a>
+            </div>
           </div>
-        </div>
-        <div class="hero-card">
-          <h3>Objetivo general</h3>
-          <p>
-            Desarrollar una página web que permita presentar información institucional, organizar contenido relevante
-            y facilitar canales de contacto para los usuarios de Conecta Mtz.
-          </p>
-        </div>
-      </div>
-    </section>
+          <div class="hero-widget glass">
+            <div class="widget-header"><span>Resumen operativo</span><strong>Hoy</strong></div>
+            <div class="metric-grid">
+              <div><strong id="metricRequests">24</strong><span>Solicitudes</span></div>
+              <div><strong>92%</strong><span>Atención</span></div>
+              <div><strong>8</strong><span>Servicios</span></div>
+              <div><strong>4.8</strong><span>Valoración</span></div>
+            </div>
+          </div>
+        </section>
 
-    <section class="section" id="proyecto">
-      <div class="container grid-two">
-        <div>
-          <p class="section-label">Acerca del proyecto</p>
-          <h2>Una propuesta digital clara, formal y funcional</h2>
-          <p>
-            Conecta Mtz se plantea como una herramienta web orientada a centralizar información,
-            mejorar la comunicación y ofrecer una experiencia sencilla para los usuarios. La página se desarrolla
-            con una estructura responsive, adaptable a computadoras, tabletas y teléfonos móviles.
-          </p>
-        </div>
-        <div class="info-box">
-          <h3>Alcance inicial</h3>
-          <ul>
-            <li>Presentar información general del proyecto.</li>
-            <li>Organizar secciones de servicios y beneficios.</li>
-            <li>Incluir medios de contacto para usuarios.</li>
-            <li>Permitir futuras mejoras e integración de nuevas funciones.</li>
-          </ul>
-        </div>
-      </div>
-    </section>
+        <section class="section" id="proyecto">
+          <div class="section-heading">
+            <span class="pill light">Integración completa</span>
+            <h2>Proyecto Conecta Martínez</h2>
+            <p>Establecer una solución web para centralizar información, mejorar procesos de contacto, registrar solicitudes y fortalecer la imagen digital del proyecto.</p>
+          </div>
+          <div class="feature-grid">
+            <article class="feature-card"><span>01</span><h3>Objetivo</h3><p>Desarrollar una plataforma web accesible, organizada y funcional para comunicar servicios y gestionar solicitudes.</p></article>
+            <article class="feature-card"><span>02</span><h3>Alcance</h3><p>Incluir interfaz pública, portafolio, formulario, chat, mapa, acceso administrativo y dashboard inicial.</p></article>
+            <article class="feature-card"><span>03</span><h3>Tecnología</h3><p>Utilizar HTML, CSS, JavaScript y estructura preparada para Firebase, MySQL o futuras APIs.</p></article>
+          </div>
+        </section>
 
-    <section class="section dark" id="servicios">
-      <div class="container">
-        <p class="section-label">Servicios</p>
-        <h2>Complementos principales de la página</h2>
-        <div class="cards">
-          <article class="card">
-            <span>01</span>
-            <h3>Diseño responsive</h3>
-            <p>Adaptar la interfaz para visualizarse correctamente en diferentes dispositivos.</p>
-          </article>
-          <article class="card">
-            <span>02</span>
-            <h3>Información organizada</h3>
-            <p>Distribuir el contenido en secciones claras, formales y fáciles de consultar.</p>
-          </article>
-          <article class="card">
-            <span>03</span>
-            <h3>Interacción básica</h3>
-            <p>Integrar menú móvil, animaciones suaves y navegación interna mediante enlaces.</p>
-          </article>
-          <article class="card">
-            <span>04</span>
-            <h3>Escalabilidad</h3>
-            <p>Preparar la estructura para incorporar nuevas páginas, formularios o funciones.</p>
-          </article>
-        </div>
-      </div>
-    </section>
+        <section class="section" id="servicios">
+          <div class="section-heading left"><span class="pill light">Servicios</span><h2>Módulos principales</h2></div>
+          <div class="service-grid">
+            <div class="service-card">📋 <strong>Registro de solicitudes</strong><p>Capturar datos de usuarios mediante formulario funcional con validación.</p></div>
+            <div class="service-card">🧭 <strong>Mapa interactivo</strong><p>Ubicar el área de atención o referencia mediante OpenStreetMap.</p></div>
+            <div class="service-card">💬 <strong>Chat de atención</strong><p>Simular comunicación inicial para orientar al visitante.</p></div>
+            <div class="service-card">🔐 <strong>Panel administrativo</strong><p>Acceder a un tablero de control para revisar estadísticas del proyecto.</p></div>
+          </div>
+        </section>
 
-    <section class="section" id="beneficios">
-      <div class="container">
-        <p class="section-label">Beneficios</p>
-        <h2>Ventajas de implementar Conecta Mtz</h2>
-        <div class="benefit-list">
-          <div class="benefit"><strong>Accesibilidad:</strong> Permitir consultar información desde cualquier dispositivo.</div>
-          <div class="benefit"><strong>Comunicación:</strong> Facilitar el contacto con usuarios e interesados.</div>
-          <div class="benefit"><strong>Organización:</strong> Presentar contenido de forma ordenada y profesional.</div>
-          <div class="benefit"><strong>Imagen digital:</strong> Fortalecer la presencia del proyecto en internet.</div>
-        </div>
-      </div>
-    </section>
+        <section class="section" id="portafolio">
+          <div class="section-heading">
+            <span class="pill light">Galería / Portafolio</span>
+            <h2>Evidencias y módulos visuales</h2>
+          </div>
+          <div class="portfolio-grid">
+            <article><div class="portfolio-img gradient-a"></div><h3>Comunicación digital</h3><p>Diseño de interfaz para informar servicios.</p></article>
+            <article><div class="portfolio-img gradient-b"></div><h3>Gestión de atención</h3><p>Registro y seguimiento de solicitudes.</p></article>
+            <article><div class="portfolio-img gradient-c"></div><h3>Panel de control</h3><p>Visualización administrativa del proyecto.</p></article>
+          </div>
+        </section>
 
-    <section class="section contact" id="contacto">
-      <div class="container grid-two">
-        <div>
-          <p class="section-label">Contacto</p>
-          <h2>Establecer comunicación con Conecta Mtz</h2>
-          <p>
-            Completar esta sección con los datos oficiales del proyecto, correo electrónico,
-            teléfono o enlaces institucionales correspondientes.
-          </p>
-        </div>
-        <form class="contact-form">
-          <input type="text" placeholder="Nombre completo" />
-          <input type="email" placeholder="Correo electrónico" />
-          <textarea placeholder="Mensaje"></textarea>
-          <button type="button" class="btn primary">Enviar mensaje</button>
-        </form>
-      </div>
-    </section>
-  </main>
+        <section class="section dashboard-section" id="dashboard">
+          <div class="section-heading left"><span class="pill light">Dashboard administrativo</span><h2>Indicadores iniciales</h2></div>
+          <div class="dashboard-grid">
+            <div class="dash-card"><span>Total solicitudes</span><strong id="dashTotal">24</strong><small>+12% esta semana</small></div>
+            <div class="dash-card"><span>Usuarios atendidos</span><strong>138</strong><small>Periodo abril-junio</small></div>
+            <div class="dash-card"><span>Servicios activos</span><strong>8</strong><small>Catálogo disponible</small></div>
+            <div class="dash-card"><span>Estado del sistema</span><strong>Activo</strong><small>Prototipo web</small></div>
+          </div>
+          <div class="table-card">
+            <h3>Últimas solicitudes</h3>
+            <table>
+              <thead><tr><th>Folio</th><th>Usuario</th><th>Servicio</th><th>Estado</th></tr></thead>
+              <tbody id="requestsTable"></tbody>
+            </table>
+          </div>
+        </section>
 
-  <footer class="footer">
-    <div class="container">
-      <p>© 2026 Conecta Mtz. Proyecto web desarrollado como propuesta digital.</p>
+        <section class="section contact" id="contacto">
+          <div class="contact-layout">
+            <div>
+              <span class="pill light">Formulario funcional</span>
+              <h2>Enviar solicitud de atención</h2>
+              <p>El formulario valida datos y guarda el registro en el navegador como demostración. Para producción se puede conectar a Firebase o MySQL.</p>
+              <div class="map-card">
+                <iframe title="Mapa de Martínez de la Torre" src="https://www.openstreetmap.org/export/embed.html?bbox=-97.10%2C20.03%2C-96.98%2C20.12&layer=mapnik" loading="lazy"></iframe>
+              </div>
+            </div>
+            <form class="contact-form" id="contactForm">
+              <input name="nombre" type="text" placeholder="Nombre completo" required />
+              <input name="correo" type="email" placeholder="Correo electrónico" required />
+              <select name="servicio" required>
+                <option value="">Seleccionar servicio</option>
+                <option>Información general</option>
+                <option>Soporte</option>
+                <option>Registro de solicitud</option>
+                <option>Seguimiento</option>
+              </select>
+              <textarea name="mensaje" placeholder="Describir la solicitud" required></textarea>
+              <button class="btn primary" type="submit">Registrar solicitud</button>
+              <p class="form-status" id="formStatus"></p>
+            </form>
+          </div>
+        </section>
+      </main>
     </div>
-  </footer>
+  </div>
+
+  <div class="login-modal" id="loginModal">
+    <div class="login-card">
+      <button class="close" id="closeLogin">×</button>
+      <h2>Acceso administrativo</h2>
+      <p>Prototipo de inicio de sesión. Usuario: admin · Contraseña: conecta2026</p>
+      <form id="loginForm">
+        <input id="user" type="text" placeholder="Usuario" required />
+        <input id="password" type="password" placeholder="Contraseña" required />
+        <button class="btn primary" type="submit">Ingresar</button>
+        <p id="loginStatus"></p>
+      </form>
+    </div>
+  </div>
+
+  <div class="chat-widget" id="chatWidget">
+    <div class="chat-header">Atención Conecta Mtz <button id="toggleChat">−</button></div>
+    <div class="chat-body" id="chatBody">
+      <p><strong>Asistente:</strong> Hola, ¿en qué podemos ayudarte?</p>
+    </div>
+    <form class="chat-form" id="chatForm">
+      <input id="chatInput" type="text" placeholder="Escribir mensaje..." />
+      <button type="submit">Enviar</button>
+    </form>
+  </div>
 
   <script src="script.js"></script>
 </body>
