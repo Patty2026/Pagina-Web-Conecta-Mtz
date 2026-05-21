@@ -1,0 +1,1 @@
+const menu=document.getElementById('menuToggle'); const links=document.getElementById('navLinks'); if(menu){menu.addEventListener('click',()=>links.classList.toggle('active'));}
