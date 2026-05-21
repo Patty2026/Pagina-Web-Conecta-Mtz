@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="Conecta Martínez: plataforma web moderna para gestión, comunicación, servicios, portafolio y atención ciudadana." />
   <title>Conecta Mtz | Plataforma Web Integral</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="./styles.css?v=20260521-2" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
@@ -15,16 +15,11 @@
   <div class="app-shell">
     <aside class="sidebar" id="sidebar">
       <div class="brand"><div class="brand-icon">CM</div><div><strong>Conecta Mtz</strong><small>Plataforma digital</small></div></div>
-      <nav class="side-nav">
-        <a href="#inicio">Inicio</a><a href="#proyecto">Proyecto</a><a href="#servicios">Servicios</a><a href="#portafolio">Portafolio</a><a href="#dashboard">Dashboard</a><a href="#admin">Admin</a><a href="#contacto">Contacto</a>
-      </nav>
+      <nav class="side-nav"><a href="#inicio">Inicio</a><a href="#proyecto">Proyecto</a><a href="#servicios">Servicios</a><a href="#portafolio">Portafolio</a><a href="#dashboard">Dashboard</a><a href="#admin">Admin</a><a href="#contacto">Contacto</a></nav>
       <div class="sidebar-card"><span>Estado</span><strong>Sistema ampliado</strong><p>Con Firebase preparado, API, gráficos y GitHub Pages.</p></div>
     </aside>
     <div class="main-area">
-      <header class="topbar">
-        <button class="icon-btn" id="menuToggle">☰</button><div class="search-box">Buscar módulos, servicios o reportes...</div>
-        <button class="btn ghost" id="themeToggle">Modo oscuro</button><button class="btn ghost" id="notifyBtn">Notificar</button><button class="btn ghost" id="openLogin">Acceso administrativo</button>
-      </header>
+      <header class="topbar"><button class="icon-btn" id="menuToggle">☰</button><div class="search-box">Buscar módulos, servicios o reportes...</div><button class="btn ghost" id="themeToggle">Modo oscuro</button><button class="btn ghost" id="notifyBtn">Notificar</button><button class="btn ghost" id="openLogin">Acceso administrativo</button></header>
       <main>
         <section class="hero" id="inicio"><div class="hero-copy"><span class="pill">Proyecto Integrador · Conecta Martínez</span><h1>Gestionar servicios, comunicación y atención desde una plataforma moderna.</h1><p>Conecta Mtz integra diseño profesional, formulario funcional, galería, panel de acceso, mapa interactivo, chat de atención, notificaciones, gráficas y dashboard administrativo.</p><div class="hero-actions"><a class="btn primary" href="#dashboard">Ver dashboard</a><a class="btn secondary" href="#contacto">Enviar solicitud</a></div></div><div class="hero-widget glass"><div class="widget-header"><span>Resumen operativo</span><strong>Hoy</strong></div><div class="metric-grid"><div><strong id="metricRequests">24</strong><span>Solicitudes</span></div><div><strong>92%</strong><span>Atención</span></div><div><strong>8</strong><span>Servicios</span></div><div><strong>4.8</strong><span>Valoración</span></div></div></div></section>
         <section class="section" id="proyecto"><div class="section-heading"><span class="pill light">Integración completa</span><h2>Proyecto Conecta Martínez</h2><p>Establecer una solución web para centralizar información, mejorar procesos de contacto, registrar solicitudes y fortalecer la imagen digital del proyecto.</p></div><div class="feature-grid"><article class="feature-card"><span>01</span><h3>Autenticación</h3><p>Preparar acceso administrativo con Firebase Authentication.</p></article><article class="feature-card"><span>02</span><h3>Base de datos</h3><p>Guardar solicitudes en Firestore o conectarlas con MySQL mediante backend.</p></article><article class="feature-card"><span>03</span><h3>API</h3><p>Incluir servidor Node/Express para formularios, portafolio y administración.</p></article></div></section>
@@ -39,7 +34,6 @@
   <div class="login-modal" id="loginModal"><div class="login-card"><button class="close" id="closeLogin">×</button><h2>Acceso administrativo</h2><p>Prototipo: admin · conecta2026. Para producción usar Firebase Authentication.</p><form id="loginForm"><input id="user" type="text" placeholder="Usuario" required /><input id="password" type="password" placeholder="Contraseña" required /><button class="btn primary" type="submit">Ingresar</button><p id="loginStatus"></p></form></div></div>
   <div class="chat-widget" id="chatWidget"><div class="chat-header">Atención Conecta Mtz <button id="toggleChat">−</button></div><div class="chat-body" id="chatBody"><p><strong>Asistente:</strong> Hola, ¿en qué podemos ayudarte?</p></div><form class="chat-form" id="chatForm"><input id="chatInput" type="text" placeholder="Escribir mensaje..." /><button type="submit">Enviar</button></form></div>
   <div class="toast" id="toast"></div>
-  <script src="firebase-config.js"></script>
-  <script src="script.js"></script>
+  <script src="./script.js?v=20260521-2"></script>
 </body>
 </html>
