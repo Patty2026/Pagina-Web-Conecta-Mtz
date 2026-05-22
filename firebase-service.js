@@ -17,22 +17,24 @@ import {
   orderBy,
   serverTimestamp,
   updateDoc,
-  doc
+  doc,
+  setDoc,
+  getDoc
 } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
-import {
-  getStorage,
-  ref,
-  uploadBytes,
-  getDownloadURL
-} from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js';
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const storage = getStorage(app);
 
-export async function registrarUsuario(correo, password) {
-  return createUserWithEmailAndPassword(auth, correo, password);
+export async function registrarUsuario(correo, password, rol = 'Ciudadano') {
+  const credencial = await createUserWithEmailAndPassword(auth, correo, password);
+  await crearPerfilUsuario(credencial.user.uid, {
+    correo,
+    rol,
+    nombre: correo.split('@')[0],
+    estado: 'Activo'
+  });
+  return credencial;
 }
 
 export async function iniciarSesion(correo, password) {
@@ -47,12 +49,20 @@ export function escucharSesion(callback) {
   return onAuthStateChanged(auth, callback);
 }
 
-export async function subirImagenIncidencia(file, userId) {
-  if (!file) return null;
-  const path = `incidencias/${userId}/${Date.now()}-${file.name}`;
-  const storageRef = ref(storage, path);
-  await uploadBytes(storageRef, file);
-  return getDownloadURL(storageRef);
+export async function crearPerfilUsuario(userId, data) {
+  const usuarioRef = doc(db, 'usuarios', userId);
+  return setDoc(usuarioRef, {
+    ...data,
+    uid: userId,
+    fechaRegistro: serverTimestamp(),
+    fechaActualizacion: serverTimestamp()
+  }, { merge: true });
+}
+
+export async function obtenerPerfilUsuario(userId) {
+  const usuarioRef = doc(db, 'usuarios', userId);
+  const snapshot = await getDoc(usuarioRef);
+  return snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null;
 }
 
 export async function crearIncidencia(data) {
@@ -80,6 +90,16 @@ export async function obtenerTodasLasIncidencias() {
   return snapshot.docs.map(documento => ({ id: documento.id, ...documento.data() }));
 }
 
+export async function obtenerIncidenciasAsignadas(nombreInstitucion = 'Apoyo comunitario') {
+  const q = query(
+    collection(db, 'incidencias'),
+    where('asignadoA', '==', nombreInstitucion),
+    orderBy('fechaRegistro', 'desc')
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(documento => ({ id: documento.id, ...documento.data() }));
+}
+
 export async function actualizarEstadoIncidencia(idIncidencia, estado, comentario = '') {
   const incidenciaRef = doc(db, 'incidencias', idIncidencia);
   return updateDoc(incidenciaRef, {
@@ -89,4 +109,10 @@ export async function actualizarEstadoIncidencia(idIncidencia, estado, comentari
   });
 }
 
-export { auth, db, storage };
+// Storage queda pendiente porque el plan Spark puede solicitar actualización.
+// Por ahora las evidencias se guardan como nombre de archivo dentro de Firestore.
+export async function subirImagenIncidencia(file) {
+  return file ? file.name : null;
+}
+
+export { auth, db };
