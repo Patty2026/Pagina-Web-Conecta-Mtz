@@ -1,15 +1,13 @@
 // Configuración Firebase para Conecta Martínez
-// Paso 1: Crear proyecto en https://console.firebase.google.com/
-// Paso 2: Registrar una app Web
-// Paso 3: Copiar aquí las credenciales reales que entrega Firebase
+// Proyecto: Conecta-Martinez
 
 const firebaseConfig = {
-  apiKey: "TU_API_KEY",
-  authDomain: "TU_PROYECTO.firebaseapp.com",
-  projectId: "TU_PROJECT_ID",
-  storageBucket: "TU_PROYECTO.appspot.com",
-  messagingSenderId: "TU_MESSAGING_SENDER_ID",
-  appId: "TU_APP_ID"
+  apiKey: "AIzaSyC5HxtRjdur9Kv514GI7uBnTPon75eLlIA",
+  authDomain: "conecta-martinez.firebaseapp.com",
+  projectId: "conecta-martinez",
+  storageBucket: "conecta-martinez.firebasestorage.app",
+  messagingSenderId: "720625753943",
+  appId: "1:720625753943:web:f2ff72f62aaec5e8ef2812"
 };
 
 export default firebaseConfig;
