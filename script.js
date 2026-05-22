@@ -12,11 +12,17 @@ let currentUser = null;
 let selectedCategoryValue = 'Baches en vialidades';
 let selectedEvidenceName = 'Sin archivo';
 let selectedSeverity = 'Media';
+let currentLocation = null;
+let locationLabel = 'Ubicación no capturada';
 
 function showScreen(target) {
   screens.forEach(screen => screen.classList.remove('active'));
   document.getElementById(target)?.classList.add('active');
   window.scrollTo(0, 0);
+
+  if (target === 'locationScreen') {
+    requestUserLocation();
+  }
 }
 
 function setAuthMessage(message, type = 'info') {
@@ -34,6 +40,49 @@ function friendlyFirebaseError(error) {
   if (code.includes('auth/invalid-credential') || code.includes('auth/wrong-password') || code.includes('auth/user-not-found')) return 'Correo o contraseña incorrectos.';
   if (code.includes('permission-denied')) return 'No tienes permisos para realizar esta acción. Revisa las reglas de Firestore.';
   return 'Ocurrió un error. Intenta nuevamente.';
+}
+
+function updateLocationUI(message) {
+  const mapSmall = document.querySelector('#locationScreen .mini-map small');
+  const summaryLocation = document.getElementById('summaryLocation');
+  if (mapSmall) mapSmall.innerHTML = message.replaceAll('\n', '<br>');
+  if (summaryLocation) summaryLocation.textContent = message.replaceAll('\n', ' · ');
+}
+
+function requestUserLocation() {
+  if (!navigator.geolocation) {
+    locationLabel = 'Geolocalización no disponible en este dispositivo';
+    updateLocationUI(locationLabel);
+    return;
+  }
+
+  locationLabel = 'Solicitando ubicación GPS...';
+  updateLocationUI(locationLabel);
+
+  navigator.geolocation.getCurrentPosition(
+    position => {
+      const { latitude, longitude, accuracy } = position.coords;
+      currentLocation = {
+        latitud: latitude,
+        longitud: longitude,
+        precisionMetros: Math.round(accuracy || 0)
+      };
+      locationLabel = `Ubicación capturada\nLat: ${latitude.toFixed(6)}, Lng: ${longitude.toFixed(6)}\nPrecisión: ${Math.round(accuracy || 0)} m`;
+      updateLocationUI(locationLabel);
+    },
+    error => {
+      currentLocation = null;
+      if (error.code === 1) locationLabel = 'Permiso de ubicación denegado';
+      else if (error.code === 2) locationLabel = 'No se pudo obtener la ubicación';
+      else locationLabel = 'Tiempo de espera agotado al obtener ubicación';
+      updateLocationUI(locationLabel);
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 12000,
+      maximumAge: 0
+    }
+  );
 }
 
 async function loadUserReports() {
@@ -83,10 +132,12 @@ function updateSummary() {
   const summaryDesc = document.getElementById('summaryDesc');
   const summaryEvidence = document.getElementById('summaryEvidence');
   const selectedCategory = document.getElementById('selectedCategory');
+  const summaryLocation = document.getElementById('summaryLocation');
 
   if (summaryDesc) summaryDesc.textContent = desc;
   if (summaryEvidence) summaryEvidence.textContent = selectedEvidenceName;
   if (selectedCategory) selectedCategory.textContent = selectedCategoryValue;
+  if (summaryLocation) summaryLocation.textContent = locationLabel.replaceAll('\n', ' · ');
 }
 
 document.querySelectorAll('[data-go]').forEach(btn => {
@@ -127,7 +178,7 @@ document.getElementById('registerBtn')?.addEventListener('click', async () => {
 
   setAuthMessage('Registrando usuario...', 'info');
   try {
-    await registrarUsuario(email, password);
+    await registrarUsuario(email, password, document.getElementById('roleSelect')?.value || 'Ciudadano');
     setAuthMessage('Registro exitoso. Bienvenida a Conecta Martínez.', 'success');
     showScreen('homeScreen');
   } catch (error) {
@@ -169,7 +220,8 @@ document.getElementById('sendReport')?.addEventListener('click', async () => {
       descripcion: desc,
       tiempo,
       gravedad: selectedSeverity,
-      ubicacion: 'Calle Ignacio Zaragoza 100, Centro, Martínez de la Torre, Ver.',
+      ubicacion: locationLabel,
+      coordenadas: currentLocation,
       evidenciaNombre: selectedEvidenceName,
       idCiudadano: currentUser.uid,
       correoCiudadano: currentUser.email,
@@ -302,28 +354,6 @@ if (carousel && slides.length) {
   }, { passive: true });
 
   carousel.addEventListener('touchend', () => {
-    if (!isDragging) return;
-    isDragging = false;
-    resetTransition();
-    const distance = currentX - startX;
-    Math.abs(distance) > 55 ? (distance < 0 ? updateCarousel(currentSlide + 1) : previousSlide()) : updateCarousel(currentSlide);
-    startAutoSlide();
-  });
-
-  carousel.addEventListener('mousedown', event => {
-    stopAutoSlide();
-    isDragging = true;
-    startX = event.clientX;
-    currentX = startX;
-  });
-
-  window.addEventListener('mousemove', event => {
-    if (!isDragging) return;
-    currentX = event.clientX;
-    dragTo(currentX - startX);
-  });
-
-  window.addEventListener('mouseup', () => {
     if (!isDragging) return;
     isDragging = false;
     resetTransition();
