@@ -19,10 +19,7 @@ function showScreen(target) {
   screens.forEach(screen => screen.classList.remove('active'));
   document.getElementById(target)?.classList.add('active');
   window.scrollTo(0, 0);
-
-  if (target === 'locationScreen') {
-    requestUserLocation();
-  }
+  if (target === 'locationScreen') requestUserLocation();
 }
 
 function setAuthMessage(message, type = 'info') {
@@ -33,13 +30,17 @@ function setAuthMessage(message, type = 'info') {
 }
 
 function friendlyFirebaseError(error) {
+  console.error('Firebase error:', error);
   const code = error?.code || '';
-  if (code.includes('auth/email-already-in-use')) return 'Este correo ya está registrado. Inicia sesión.';
+  const message = error?.message || '';
+  if (code.includes('auth/email-already-in-use')) return 'Este correo ya está registrado. Usa otro correo o inicia sesión.';
   if (code.includes('auth/invalid-email')) return 'El correo electrónico no es válido.';
   if (code.includes('auth/weak-password')) return 'La contraseña debe tener al menos 6 caracteres.';
+  if (code.includes('auth/operation-not-allowed')) return 'El acceso por correo/contraseña no está habilitado en Firebase.';
+  if (code.includes('auth/network-request-failed')) return 'No hay conexión con Firebase. Revisa internet o WebView.';
   if (code.includes('auth/invalid-credential') || code.includes('auth/wrong-password') || code.includes('auth/user-not-found')) return 'Correo o contraseña incorrectos.';
-  if (code.includes('permission-denied')) return 'No tienes permisos para realizar esta acción. Revisa las reglas de Firestore.';
-  return 'Ocurrió un error. Intenta nuevamente.';
+  if (code.includes('permission-denied')) return 'El usuario se creó, pero Firestore bloqueó el perfil. Revisa las reglas.';
+  return `Error: ${code || message || 'No identificado'}`;
 }
 
 function updateLocationUI(message) {
@@ -55,18 +56,12 @@ function requestUserLocation() {
     updateLocationUI(locationLabel);
     return;
   }
-
   locationLabel = 'Solicitando ubicación GPS...';
   updateLocationUI(locationLabel);
-
   navigator.geolocation.getCurrentPosition(
     position => {
       const { latitude, longitude, accuracy } = position.coords;
-      currentLocation = {
-        latitud: latitude,
-        longitud: longitude,
-        precisionMetros: Math.round(accuracy || 0)
-      };
+      currentLocation = { latitud: latitude, longitud: longitude, precisionMetros: Math.round(accuracy || 0) };
       locationLabel = `Ubicación capturada\nLat: ${latitude.toFixed(6)}, Lng: ${longitude.toFixed(6)}\nPrecisión: ${Math.round(accuracy || 0)} m`;
       updateLocationUI(locationLabel);
     },
@@ -77,42 +72,31 @@ function requestUserLocation() {
       else locationLabel = 'Tiempo de espera agotado al obtener ubicación';
       updateLocationUI(locationLabel);
     },
-    {
-      enableHighAccuracy: true,
-      timeout: 12000,
-      maximumAge: 0
-    }
+    { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
   );
 }
+
+document.getElementById('refreshLocationBtn')?.addEventListener('click', requestUserLocation);
 
 async function loadUserReports() {
   const reportsList = document.getElementById('reportsList');
   if (!reportsList || !currentUser) return;
-
   reportsList.innerHTML = '<div class="report-card"><span class="icon cyan">⏳</span><div><b>Cargando reportes...</b><small>Consultando Firestore</small></div></div>';
-
   try {
     const reports = await obtenerIncidenciasPorUsuario(currentUser.uid);
     if (!reports.length) {
       reportsList.innerHTML = '<div class="report-card"><span class="icon green">ℹ️</span><div><b>Sin reportes todavía</b><small>Crea tu primera incidencia</small></div><span>›</span></div>';
       return;
     }
-
     reportsList.innerHTML = reports.slice(0, 5).map(report => `
       <div class="report-card" data-go="trackingScreen">
         <span class="icon cyan">${getCategoryIcon(report.tipo)}</span>
-        <div>
-          <b>${report.folio || report.tipo || 'Incidencia'}</b>
-          <small>${report.estado || 'Pendiente'} · ${report.ubicacion || 'Sin ubicación'}</small>
-        </div>
+        <div><b>${report.folio || report.tipo || 'Incidencia'}</b><small>${report.estado || 'Pendiente'} · ${report.ubicacion || 'Sin ubicación'}</small></div>
         <span>›</span>
-      </div>
-    `).join('');
-
-    reportsList.querySelectorAll('[data-go]').forEach(card => {
-      card.addEventListener('click', () => showScreen(card.dataset.go));
-    });
+      </div>`).join('');
+    reportsList.querySelectorAll('[data-go]').forEach(card => card.addEventListener('click', () => showScreen(card.dataset.go)));
   } catch (error) {
+    console.error(error);
     reportsList.innerHTML = '<div class="report-card"><span class="icon orange">⚠️</span><div><b>No se pudieron cargar los reportes</b><small>Revisa conexión o reglas de Firestore</small></div></div>';
   }
 }
@@ -129,34 +113,19 @@ function getCategoryIcon(category = '') {
 
 function updateSummary() {
   const desc = document.getElementById('desc')?.value?.trim() || 'Completa la descripción del problema.';
-  const summaryDesc = document.getElementById('summaryDesc');
-  const summaryEvidence = document.getElementById('summaryEvidence');
-  const selectedCategory = document.getElementById('selectedCategory');
-  const summaryLocation = document.getElementById('summaryLocation');
-
-  if (summaryDesc) summaryDesc.textContent = desc;
-  if (summaryEvidence) summaryEvidence.textContent = selectedEvidenceName;
-  if (selectedCategory) selectedCategory.textContent = selectedCategoryValue;
-  if (summaryLocation) summaryLocation.textContent = locationLabel.replaceAll('\n', ' · ');
+  document.getElementById('summaryDesc') && (document.getElementById('summaryDesc').textContent = desc);
+  document.getElementById('summaryEvidence') && (document.getElementById('summaryEvidence').textContent = selectedEvidenceName);
+  document.getElementById('selectedCategory') && (document.getElementById('selectedCategory').textContent = selectedCategoryValue);
+  document.getElementById('summaryLocation') && (document.getElementById('summaryLocation').textContent = locationLabel.replaceAll('\n', ' · '));
 }
 
-document.querySelectorAll('[data-go]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    if (btn.dataset.go === 'confirmScreen') updateSummary();
-    showScreen(btn.dataset.go);
-  });
-});
+document.querySelectorAll('[data-go]').forEach(btn => btn.addEventListener('click', () => { if (btn.dataset.go === 'confirmScreen') updateSummary(); showScreen(btn.dataset.go); }));
 
 document.getElementById('loginForm')?.addEventListener('submit', async event => {
   event.preventDefault();
   const email = document.getElementById('loginEmail')?.value?.trim();
   const password = document.getElementById('loginPassword')?.value;
-
-  if (!email || !password) {
-    setAuthMessage('Escribe correo y contraseña.', 'error');
-    return;
-  }
-
+  if (!email || !password) return setAuthMessage('Escribe correo y contraseña.', 'error');
   setAuthMessage('Iniciando sesión...', 'info');
   try {
     await iniciarSesion(email, password);
@@ -170,16 +139,12 @@ document.getElementById('loginForm')?.addEventListener('submit', async event => 
 document.getElementById('registerBtn')?.addEventListener('click', async () => {
   const email = document.getElementById('loginEmail')?.value?.trim();
   const password = document.getElementById('loginPassword')?.value;
-
-  if (!email || !password) {
-    setAuthMessage('Para registrarte escribe correo y contraseña.', 'error');
-    return;
-  }
-
+  const role = document.getElementById('roleSelect')?.value || 'Ciudadano';
+  if (!email || !password) return setAuthMessage('Para registrarte escribe correo y contraseña.', 'error');
   setAuthMessage('Registrando usuario...', 'info');
   try {
-    await registrarUsuario(email, password, document.getElementById('roleSelect')?.value || 'Ciudadano');
-    setAuthMessage('Registro exitoso. Bienvenida a Conecta Martínez.', 'success');
+    await registrarUsuario(email, password, role);
+    setAuthMessage('Registro exitoso. Usuario creado en Firebase.', 'success');
     showScreen('homeScreen');
   } catch (error) {
     setAuthMessage(friendlyFirebaseError(error), 'error');
@@ -187,48 +152,18 @@ document.getElementById('registerBtn')?.addEventListener('click', async () => {
 });
 
 document.getElementById('logoutBtn')?.addEventListener('click', async () => {
-  try {
-    await cerrarSesion();
-    showScreen('loginScreen');
-    setAuthMessage('Sesión cerrada.', 'info');
-  } catch (error) {
-    setAuthMessage('No se pudo cerrar sesión.', 'error');
-  }
+  try { await cerrarSesion(); showScreen('loginScreen'); setAuthMessage('Sesión cerrada.', 'info'); }
+  catch { setAuthMessage('No se pudo cerrar sesión.', 'error'); }
 });
 
 document.getElementById('sendReport')?.addEventListener('click', async () => {
-  if (!currentUser) {
-    alert('Debes iniciar sesión para enviar un reporte.');
-    showScreen('loginScreen');
-    return;
-  }
-
+  if (!currentUser) { alert('Debes iniciar sesión para enviar un reporte.'); return showScreen('loginScreen'); }
   const desc = document.getElementById('desc')?.value?.trim();
   const tiempo = document.getElementById('incidentTime')?.value || 'No especificado';
-
-  if (!desc) {
-    alert('Agrega una descripción del problema.');
-    showScreen('reportInfoScreen');
-    return;
-  }
-
+  if (!desc) { alert('Agrega una descripción del problema.'); return showScreen('reportInfoScreen'); }
   try {
     const folio = `#INC-${new Date().getFullYear()}-${Math.floor(Date.now() / 1000).toString().slice(-5)}`;
-    await crearIncidencia({
-      folio,
-      tipo: selectedCategoryValue,
-      descripcion: desc,
-      tiempo,
-      gravedad: selectedSeverity,
-      ubicacion: locationLabel,
-      coordenadas: currentLocation,
-      evidenciaNombre: selectedEvidenceName,
-      idCiudadano: currentUser.uid,
-      correoCiudadano: currentUser.email,
-      estado: 'Pendiente',
-      asignadoA: 'Apoyo comunitario'
-    });
-
+    await crearIncidencia({ folio, tipo: selectedCategoryValue, descripcion: desc, tiempo, gravedad: selectedSeverity, ubicacion: locationLabel, coordenadas: currentLocation, evidenciaNombre: selectedEvidenceName, idCiudadano: currentUser.uid, correoCiudadano: currentUser.email, estado: 'Pendiente', asignadoA: 'Apoyo comunitario' });
     alert(`Reporte enviado correctamente: ${folio}`);
     document.getElementById('incidentForm')?.reset();
     selectedEvidenceName = 'Sin archivo';
@@ -236,9 +171,7 @@ document.getElementById('sendReport')?.addEventListener('click', async () => {
     if (evidenceLabel) evidenceLabel.textContent = 'Tomar foto o seleccionar imagen';
     await loadUserReports();
     showScreen('homeScreen');
-  } catch (error) {
-    alert(friendlyFirebaseError(error));
-  }
+  } catch (error) { alert(friendlyFirebaseError(error)); }
 });
 
 document.getElementById('evidenceFile')?.addEventListener('change', event => {
@@ -249,26 +182,16 @@ document.getElementById('evidenceFile')?.addEventListener('change', event => {
   updateSummary();
 });
 
-document.querySelectorAll('.severity button').forEach(button => {
-  button.addEventListener('click', () => {
-    document.querySelectorAll('.severity button').forEach(btn => btn.classList.remove('active'));
-    button.classList.add('active');
-    selectedSeverity = button.textContent.trim();
-  });
-});
+document.querySelectorAll('.severity button').forEach(button => button.addEventListener('click', () => { document.querySelectorAll('.severity button').forEach(btn => btn.classList.remove('active')); button.classList.add('active'); selectedSeverity = button.textContent.trim(); }));
 
 escucharSesion(user => {
   currentUser = user;
-  const homeGreeting = document.getElementById('homeGreeting');
-  const profileName = document.getElementById('profileName');
-  const profileRole = document.getElementById('profileRole');
   const role = document.getElementById('roleSelect')?.value || 'Ciudadano';
-
   if (user) {
     const name = user.email?.split('@')[0] || 'Usuario';
-    if (homeGreeting) homeGreeting.textContent = `¡Hola, ${name}! 👋`;
-    if (profileName) profileName.textContent = name;
-    if (profileRole) profileRole.textContent = `${role} activo`;
+    document.getElementById('homeGreeting') && (document.getElementById('homeGreeting').textContent = `¡Hola, ${name}! 👋`);
+    document.getElementById('profileName') && (document.getElementById('profileName').textContent = name);
+    document.getElementById('profileRole') && (document.getElementById('profileRole').textContent = `${role} activo`);
     loadUserReports();
   }
 });
@@ -279,108 +202,31 @@ const dots = Array.from(document.querySelectorAll('#onboardingDots span'));
 const title = document.getElementById('onboardingTitle');
 const text = document.getElementById('onboardingText');
 const nextSlideBtn = document.getElementById('nextSlideBtn');
-let currentSlide = 0;
-let startX = 0;
-let currentX = 0;
-let isDragging = false;
-let autoSlideTimer = null;
+let currentSlide = 0, startX = 0, currentX = 0, isDragging = false, autoSlideTimer = null;
 
 function updateCarousel(index) {
   if (!slides.length) return;
   currentSlide = (index + slides.length) % slides.length;
-  slides.forEach((slide, i) => {
-    slide.classList.toggle('active', i === currentSlide);
-    slide.style.transform = `translateX(${(i - currentSlide) * 100}%)`;
-  });
+  slides.forEach((slide, i) => { slide.classList.toggle('active', i === currentSlide); slide.style.transform = `translateX(${(i - currentSlide) * 100}%)`; });
   dots.forEach((dot, i) => dot.classList.toggle('active', i === currentSlide));
   const activeSlide = slides[currentSlide];
   if (title) title.innerHTML = activeSlide.dataset.title || '';
   if (text) text.textContent = activeSlide.dataset.text || '';
 }
-
-function nextSlide() {
-  if (currentSlide === slides.length - 1) {
-    showScreen('loginScreen');
-    return;
-  }
-  updateCarousel(currentSlide + 1);
-}
-
-function previousSlide() {
-  updateCarousel(currentSlide - 1);
-}
-
-function stopAutoSlide() {
-  if (autoSlideTimer) clearInterval(autoSlideTimer);
-}
-
-function startAutoSlide() {
-  stopAutoSlide();
-  autoSlideTimer = setInterval(() => {
-    if (document.getElementById('onboardingScreen')?.classList.contains('active')) {
-      updateCarousel(currentSlide + 1);
-    }
-  }, 5200);
-}
-
-function dragTo(distance) {
-  slides.forEach((slide, i) => {
-    slide.style.transition = 'none';
-    slide.style.transform = `translateX(calc(${(i - currentSlide) * 100}% + ${distance}px))`;
-  });
-}
-
-function resetTransition() {
-  slides.forEach(slide => {
-    slide.style.transition = 'transform .36s cubic-bezier(.22,.61,.36,1), opacity .25s ease';
-  });
-}
+function nextSlide() { currentSlide === slides.length - 1 ? showScreen('loginScreen') : updateCarousel(currentSlide + 1); }
+function previousSlide() { updateCarousel(currentSlide - 1); }
+function stopAutoSlide() { if (autoSlideTimer) clearInterval(autoSlideTimer); }
+function startAutoSlide() { stopAutoSlide(); autoSlideTimer = setInterval(() => { if (document.getElementById('onboardingScreen')?.classList.contains('active')) updateCarousel(currentSlide + 1); }, 5200); }
+function dragTo(distance) { slides.forEach((slide, i) => { slide.style.transition = 'none'; slide.style.transform = `translateX(calc(${(i - currentSlide) * 100}% + ${distance}px))`; }); }
+function resetTransition() { slides.forEach(slide => { slide.style.transition = 'transform .36s cubic-bezier(.22,.61,.36,1), opacity .25s ease'; }); }
 
 if (carousel && slides.length) {
-  updateCarousel(0);
-  startAutoSlide();
-
-  carousel.addEventListener('touchstart', event => {
-    stopAutoSlide();
-    isDragging = true;
-    startX = event.touches[0].clientX;
-    currentX = startX;
-  }, { passive: true });
-
-  carousel.addEventListener('touchmove', event => {
-    if (!isDragging) return;
-    currentX = event.touches[0].clientX;
-    dragTo(currentX - startX);
-  }, { passive: true });
-
-  carousel.addEventListener('touchend', () => {
-    if (!isDragging) return;
-    isDragging = false;
-    resetTransition();
-    const distance = currentX - startX;
-    Math.abs(distance) > 55 ? (distance < 0 ? updateCarousel(currentSlide + 1) : previousSlide()) : updateCarousel(currentSlide);
-    startAutoSlide();
-  });
-
-  dots.forEach((dot, index) => {
-    dot.addEventListener('click', () => {
-      stopAutoSlide();
-      updateCarousel(index);
-      startAutoSlide();
-    });
-  });
-
-  nextSlideBtn?.addEventListener('click', () => {
-    stopAutoSlide();
-    nextSlide();
-    startAutoSlide();
-  });
+  updateCarousel(0); startAutoSlide();
+  carousel.addEventListener('touchstart', e => { stopAutoSlide(); isDragging = true; startX = e.touches[0].clientX; currentX = startX; }, { passive: true });
+  carousel.addEventListener('touchmove', e => { if (!isDragging) return; currentX = e.touches[0].clientX; dragTo(currentX - startX); }, { passive: true });
+  carousel.addEventListener('touchend', () => { if (!isDragging) return; isDragging = false; resetTransition(); const d = currentX - startX; Math.abs(d) > 55 ? (d < 0 ? updateCarousel(currentSlide + 1) : previousSlide()) : updateCarousel(currentSlide); startAutoSlide(); });
+  dots.forEach((dot, index) => dot.addEventListener('click', () => { stopAutoSlide(); updateCarousel(index); startAutoSlide(); }));
+  nextSlideBtn?.addEventListener('click', () => { stopAutoSlide(); nextSlide(); startAutoSlide(); });
 }
 
-document.querySelectorAll('[data-category]').forEach(button => {
-  button.addEventListener('click', () => {
-    selectedCategoryValue = button.dataset.category || selectedCategoryValue;
-    const selected = document.getElementById('selectedCategory');
-    if (selected) selected.textContent = selectedCategoryValue;
-  });
-});
+document.querySelectorAll('[data-category]').forEach(button => button.addEventListener('click', () => { selectedCategoryValue = button.dataset.category || selectedCategoryValue; const selected = document.getElementById('selectedCategory'); if (selected) selected.textContent = selectedCategoryValue; }));
