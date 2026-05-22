@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <meta name="theme-color" content="#f72585" />
   <title>Conecta Martínez | App Ciudadana</title>
-  <link rel="stylesheet" href="./styles.css?v=20260522-logo-only" />
+  <link rel="stylesheet" href="./styles.css?v=20260522-carousel" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
@@ -20,11 +20,32 @@
 
     <section class="screen onboarding" id="onboardingScreen">
       <button class="skip" data-go="loginScreen">Omitir</button>
-      <div class="illustration">📍</div>
-      <h2>Tu comunidad,<br>tu <span>voz</span>,<br>tu cambio.</h2>
-      <p>Reportar incidencias, dar seguimiento y ayudar a mejorar Martínez de la Torre.</p>
-      <div class="dots"><span></span><span></span><span></span></div>
-      <button class="circle-btn" data-go="loginScreen">➜</button>
+      <div class="incident-carousel" id="incidentCarousel">
+        <article class="incident-slide active" data-title="Tu comunidad,<br>tu <span>voz</span>,<br>tu cambio." data-text="Reporta incidencias, da seguimiento y ayuda a mejorar Martínez de la Torre.">
+          <div class="slide-art alumbrado"><span>💡</span><i></i><b></b></div>
+          <strong>Alumbrado público</strong>
+          <small>Reporta luminarias apagadas o zonas oscuras.</small>
+        </article>
+        <article class="incident-slide" data-title="Reporta <span>baches</span><br>en tu colonia." data-text="Ubica el punto exacto, agrega evidencia y consulta el avance del reporte.">
+          <div class="slide-art baches"><span>🚧</span><i></i><b></b></div>
+          <strong>Baches y vialidades</strong>
+          <small>Ayuda a mejorar calles y accesos de la comunidad.</small>
+        </article>
+        <article class="incident-slide" data-title="Detecta <span>fugas</span><br>y avisa a tiempo." data-text="Adjunta una imagen y permite que apoyo comunitario atienda la incidencia.">
+          <div class="slide-art agua"><span>💧</span><i></i><b></b></div>
+          <strong>Fugas de agua</strong>
+          <small>Reporta escurrimientos, tuberías dañadas o desperdicio.</small>
+        </article>
+        <article class="incident-slide" data-title="Mantengamos limpia<br>la <span>comunidad</span>." data-text="Informa sobre acumulación de basura, áreas descuidadas o puntos de riesgo.">
+          <div class="slide-art basura"><span>🗑️</span><i></i><b></b></div>
+          <strong>Basura y áreas verdes</strong>
+          <small>Conecta tu reporte con la institución responsable.</small>
+        </article>
+      </div>
+      <h2 id="onboardingTitle">Tu comunidad,<br>tu <span>voz</span>,<br>tu cambio.</h2>
+      <p id="onboardingText">Reporta incidencias, da seguimiento y ayuda a mejorar Martínez de la Torre.</p>
+      <div class="dots" id="onboardingDots"><span class="active"></span><span></span><span></span><span></span></div>
+      <button class="circle-btn" id="nextSlideBtn" type="button">➜</button>
     </section>
 
     <section class="screen login" id="loginScreen">
@@ -35,124 +56,24 @@
         <input type="email" placeholder="correo@ejemplo.com" required>
         <label>Contraseña</label>
         <input type="password" placeholder="••••••••" required>
-        <select id="roleSelect">
-          <option>Ciudadano</option>
-          <option>Administrador</option>
-          <option>Apoyo comunitario</option>
-        </select>
+        <select id="roleSelect"><option>Ciudadano</option><option>Administrador</option><option>Apoyo comunitario</option></select>
         <button class="main-btn" type="submit">Iniciar sesión</button>
       </form>
       <p class="register">¿No tienes cuenta? <b>Regístrate</b></p>
       <div class="social-row"><button><span class="social-icon google-icon">G</span>Google</button><button><span class="social-icon facebook-icon">f</span>Facebook</button></div>
     </section>
 
-    <section class="screen home" id="homeScreen">
-      <header class="app-header"><div><b>¡Hola, Ana! 👋</b><small>¿Qué incidencia quieres reportar hoy?</small></div><button class="bell" data-go="notificationsScreen">🔔</button></header>
-      <button class="main-btn wide" data-go="categoriesScreen">+ Nueva incidencia</button>
-      <h3>Accesos rápidos</h3>
-      <div class="quick-grid">
-        <button data-category="Alumbrado público" data-go="reportInfoScreen">💡<span>Alumbrado público</span></button>
-        <button data-category="Baches en vialidades" data-go="reportInfoScreen">🚧<span>Baches</span></button>
-        <button data-category="Fugas de agua" data-go="reportInfoScreen">💧<span>Fuga de agua</span></button>
-        <button data-category="Basura" data-go="reportInfoScreen">🗑️<span>Basura</span></button>
-      </div>
-      <div class="section-title"><h3>Mis reportes</h3><button data-go="trackingScreen">Ver todos</button></div>
-      <div class="report-card" data-go="trackingScreen"><span class="icon green">🏠</span><div><b>#INC-2024-0012</b><small>En revisión</small></div><span>›</span></div>
-      <div class="report-card" data-go="trackingScreen"><span class="icon cyan">🚧</span><div><b>#INC-2024-0011</b><small>En proceso</small></div><span>›</span></div>
-      <nav class="bottom-nav"><button class="active" data-go="homeScreen">Inicio</button><button data-go="trackingScreen">Reportes</button><button data-go="mapScreen">Mapa</button><button data-go="notificationsScreen">Alertas</button><button data-go="profileScreen">Perfil</button></nav>
-    </section>
-
-    <section class="screen categories" id="categoriesScreen">
-      <button class="back" data-go="homeScreen">‹</button>
-      <h2>Nueva incidencia</h2>
-      <p class="center">¿Qué tipo de incidencia quieres reportar?</p>
-      <div class="category-list">
-        <button data-category="Alumbrado público" data-go="reportInfoScreen">💡 Alumbrado público <span>›</span></button>
-        <button data-category="Baches en vialidades" data-go="reportInfoScreen">🚧 Baches en vialidades <span>›</span></button>
-        <button data-category="Fugas de agua" data-go="reportInfoScreen">💧 Fugas de agua <span>›</span></button>
-        <button data-category="Recolección de basura" data-go="reportInfoScreen">🗑️ Recolección de basura <span>›</span></button>
-        <button data-category="Áreas verdes" data-go="reportInfoScreen">🌳 Áreas verdes <span>›</span></button>
-        <button data-category="Otro" data-go="reportInfoScreen">📌 Otro <span>›</span></button>
-      </div>
-      <div class="tip">Tu reporte es muy importante para mejorar nuestra comunidad.</div>
-    </section>
-
-    <section class="screen form-screen" id="reportInfoScreen">
-      <button class="back" data-go="categoriesScreen">‹</button>
-      <h2>Nueva incidencia</h2>
-      <div class="steps"><b>1. Información</b><span>2. Ubicación</span><span>3. Evidencia</span><span>4. Confirmar</span></div>
-      <form class="app-form" id="incidentForm">
-        <label>Descripción del problema</label>
-        <textarea id="desc" placeholder="Cuéntanos qué está pasando..." required></textarea>
-        <label>¿Desde cuándo ocurre?</label>
-        <select><option>Selecciona una opción</option><option>Hoy</option><option>Esta semana</option><option>Hace más tiempo</option></select>
-        <label>¿Qué tan grave es?</label>
-        <div class="severity"><button type="button">Baja</button><button type="button" class="active">Media</button><button type="button">Alta</button></div>
-        <button class="main-btn" type="button" data-go="locationScreen">Siguiente</button>
-      </form>
-    </section>
-
-    <section class="screen form-screen" id="locationScreen">
-      <button class="back" data-go="reportInfoScreen">‹</button>
-      <h2>Nueva incidencia</h2>
-      <div class="steps"><b>✓ Información</b><b>2. Ubicación</b><span>3. Evidencia</span><span>4. Confirmar</span></div>
-      <h3>Selecciona la ubicación exacta</h3>
-      <div class="mini-map">📍<small>Calle Ignacio Zaragoza 100<br>Centro, Martínez de la Torre, Ver.</small></div>
-      <div class="dual-actions"><button data-go="reportInfoScreen">Volver</button><button class="main-btn" data-go="evidenceScreen">Siguiente</button></div>
-    </section>
-
-    <section class="screen form-screen" id="evidenceScreen">
-      <button class="back" data-go="locationScreen">‹</button>
-      <h2>Nueva incidencia</h2>
-      <div class="steps"><b>✓ Información</b><b>✓ Ubicación</b><b>3. Evidencia</b><span>4. Confirmar</span></div>
-      <h3>Agrega evidencia</h3>
-      <label class="upload-box">📷<span>Tomar foto o seleccionar imagen</span><input type="file" accept="image/*" hidden></label>
-      <div class="photo-row"><div></div><div></div><div></div></div>
-      <div class="dual-actions"><button data-go="locationScreen">Volver</button><button class="main-btn" data-go="confirmScreen">Siguiente</button></div>
-    </section>
-
-    <section class="screen form-screen" id="confirmScreen">
-      <button class="back" data-go="evidenceScreen">‹</button>
-      <h2>Nueva incidencia</h2>
-      <div class="steps"><b>✓ Información</b><b>✓ Ubicación</b><b>✓ Evidencia</b><b>4. Confirmar</b></div>
-      <h3>Revisa tu reporte</h3>
-      <div class="summary-card"><p><b>Tipo:</b> <span id="selectedCategory">Baches en vialidades</span></p><p><b>Descripción:</b> Hay un bache grande que representa riesgo para vehículos.</p><p><b>Ubicación:</b> Calle Ignacio Zaragoza 100</p><p><b>Evidencia:</b> 3 fotos</p></div>
-      <div class="dual-actions"><button data-go="evidenceScreen">Volver</button><button class="main-btn" id="sendReport">Enviar reporte</button></div>
-    </section>
-
-    <section class="screen tracking" id="trackingScreen">
-      <button class="back" data-go="homeScreen">‹</button>
-      <h2>Detalle del reporte</h2>
-      <div class="status-banner">En proceso<br><small>Tu reporte está siendo atendido</small></div>
-      <h3>#INC-2024-0012<br><span>Baches en vialidades</span></h3>
-      <div class="timeline"><p>✅ Reporte recibido</p><p>✅ En revisión</p><p>🟠 En proceso</p><p>⚪ Resuelto pendiente</p></div>
-      <button class="main-btn" data-go="mapScreen">Ver en el mapa</button>
-    </section>
-
-    <section class="screen map" id="mapScreen">
-      <button class="back" data-go="homeScreen">‹</button>
-      <h2>Mapa</h2>
-      <input class="map-search" placeholder="Buscar en el mapa">
-      <div class="map-visual"><span class="pin p1">📍</span><span class="pin p2">📍</span><span class="pin p3">📍</span><span class="pin p4">📍</span></div>
-      <div class="report-card floating"><span class="icon orange">🚧</span><div><b>Baches en vialidades</b><small>En proceso · Calle Ignacio Zaragoza 100</small></div></div>
-      <nav class="bottom-nav"><button data-go="homeScreen">Inicio</button><button data-go="trackingScreen">Reportes</button><button class="active">Mapa</button><button data-go="notificationsScreen">Alertas</button><button data-go="profileScreen">Perfil</button></nav>
-    </section>
-
-    <section class="screen notifications" id="notificationsScreen">
-      <button class="back" data-go="homeScreen">‹</button>
-      <h2>Notificaciones</h2>
-      <div class="tabs"><button class="active">Todas</button><button>No leídas</button></div>
-      <div class="notice">📍 Tu reporte #INC-2024-0012 ha cambiado a en proceso.</div>
-      <div class="notice">💧 Tu reporte #INC-2024-0011 ha sido resuelto.</div>
-      <div class="notice">💬 Gracias por reportar. Tu participación mejora nuestra comunidad.</div>
-    </section>
-
-    <section class="screen profile" id="profileScreen">
-      <div class="profile-top"><div class="avatar">A</div><h2>Ana García</h2><p>Ciudadana activa</p><span>120 pts</span></div>
-      <div class="menu-list"><button>Mis reportes <span>›</span></button><button>Mis datos <span>›</span></button><button>Configuración <span>›</span></button><button>Ayuda y soporte <span>›</span></button><button>Acerca de la app <span>›</span></button><button data-go="loginScreen" class="logout">Cerrar sesión</button></div>
-      <nav class="bottom-nav"><button data-go="homeScreen">Inicio</button><button data-go="trackingScreen">Reportes</button><button data-go="mapScreen">Mapa</button><button data-go="notificationsScreen">Alertas</button><button class="active">Perfil</button></nav>
-    </section>
+    <section class="screen home" id="homeScreen"><header class="app-header"><div><b>¡Hola, Ana! 👋</b><small>¿Qué incidencia quieres reportar hoy?</small></div><button class="bell" data-go="notificationsScreen">🔔</button></header><button class="main-btn wide" data-go="categoriesScreen">+ Nueva incidencia</button><h3>Accesos rápidos</h3><div class="quick-grid"><button data-category="Alumbrado público" data-go="reportInfoScreen">💡<span>Alumbrado público</span></button><button data-category="Baches en vialidades" data-go="reportInfoScreen">🚧<span>Baches</span></button><button data-category="Fugas de agua" data-go="reportInfoScreen">💧<span>Fuga de agua</span></button><button data-category="Basura" data-go="reportInfoScreen">🗑️<span>Basura</span></button></div><div class="section-title"><h3>Mis reportes</h3><button data-go="trackingScreen">Ver todos</button></div><div class="report-card" data-go="trackingScreen"><span class="icon green">🏠</span><div><b>#INC-2024-0012</b><small>En revisión</small></div><span>›</span></div><div class="report-card" data-go="trackingScreen"><span class="icon cyan">🚧</span><div><b>#INC-2024-0011</b><small>En proceso</small></div><span>›</span></div><nav class="bottom-nav"><button class="active" data-go="homeScreen">Inicio</button><button data-go="trackingScreen">Reportes</button><button data-go="mapScreen">Mapa</button><button data-go="notificationsScreen">Alertas</button><button data-go="profileScreen">Perfil</button></nav></section>
+    <section class="screen categories" id="categoriesScreen"><button class="back" data-go="homeScreen">‹</button><h2>Nueva incidencia</h2><p class="center">¿Qué tipo de incidencia quieres reportar?</p><div class="category-list"><button data-category="Alumbrado público" data-go="reportInfoScreen">💡 Alumbrado público <span>›</span></button><button data-category="Baches en vialidades" data-go="reportInfoScreen">🚧 Baches en vialidades <span>›</span></button><button data-category="Fugas de agua" data-go="reportInfoScreen">💧 Fugas de agua <span>›</span></button><button data-category="Recolección de basura" data-go="reportInfoScreen">🗑️ Recolección de basura <span>›</span></button><button data-category="Áreas verdes" data-go="reportInfoScreen">🌳 Áreas verdes <span>›</span></button><button data-category="Otro" data-go="reportInfoScreen">📌 Otro <span>›</span></button></div><div class="tip">Tu reporte es muy importante para mejorar nuestra comunidad.</div></section>
+    <section class="screen form-screen" id="reportInfoScreen"><button class="back" data-go="categoriesScreen">‹</button><h2>Nueva incidencia</h2><div class="steps"><b>1. Información</b><span>2. Ubicación</span><span>3. Evidencia</span><span>4. Confirmar</span></div><form class="app-form" id="incidentForm"><label>Descripción del problema</label><textarea id="desc" placeholder="Cuéntanos qué está pasando..." required></textarea><label>¿Desde cuándo ocurre?</label><select><option>Selecciona una opción</option><option>Hoy</option><option>Esta semana</option><option>Hace más tiempo</option></select><label>¿Qué tan grave es?</label><div class="severity"><button type="button">Baja</button><button type="button" class="active">Media</button><button type="button">Alta</button></div><button class="main-btn" type="button" data-go="locationScreen">Siguiente</button></form></section>
+    <section class="screen form-screen" id="locationScreen"><button class="back" data-go="reportInfoScreen">‹</button><h2>Nueva incidencia</h2><div class="steps"><b>✓ Información</b><b>2. Ubicación</b><span>3. Evidencia</span><span>4. Confirmar</span></div><h3>Selecciona la ubicación exacta</h3><div class="mini-map">📍<small>Calle Ignacio Zaragoza 100<br>Centro, Martínez de la Torre, Ver.</small></div><div class="dual-actions"><button data-go="reportInfoScreen">Volver</button><button class="main-btn" data-go="evidenceScreen">Siguiente</button></div></section>
+    <section class="screen form-screen" id="evidenceScreen"><button class="back" data-go="locationScreen">‹</button><h2>Nueva incidencia</h2><div class="steps"><b>✓ Información</b><b>✓ Ubicación</b><b>3. Evidencia</b><span>4. Confirmar</span></div><h3>Agrega evidencia</h3><label class="upload-box">📷<span>Tomar foto o seleccionar imagen</span><input type="file" accept="image/*" hidden></label><div class="photo-row"><div></div><div></div><div></div></div><div class="dual-actions"><button data-go="locationScreen">Volver</button><button class="main-btn" data-go="confirmScreen">Siguiente</button></div></section>
+    <section class="screen form-screen" id="confirmScreen"><button class="back" data-go="evidenceScreen">‹</button><h2>Nueva incidencia</h2><div class="steps"><b>✓ Información</b><b>✓ Ubicación</b><b>✓ Evidencia</b><b>4. Confirmar</b></div><h3>Revisa tu reporte</h3><div class="summary-card"><p><b>Tipo:</b> <span id="selectedCategory">Baches en vialidades</span></p><p><b>Descripción:</b> Hay un bache grande que representa riesgo para vehículos.</p><p><b>Ubicación:</b> Calle Ignacio Zaragoza 100</p><p><b>Evidencia:</b> 3 fotos</p></div><div class="dual-actions"><button data-go="evidenceScreen">Volver</button><button class="main-btn" id="sendReport">Enviar reporte</button></div></section>
+    <section class="screen tracking" id="trackingScreen"><button class="back" data-go="homeScreen">‹</button><h2>Detalle del reporte</h2><div class="status-banner">En proceso<br><small>Tu reporte está siendo atendido</small></div><h3>#INC-2024-0012<br><span>Baches en vialidades</span></h3><div class="timeline"><p>✅ Reporte recibido</p><p>✅ En revisión</p><p>🟠 En proceso</p><p>⚪ Resuelto pendiente</p></div><button class="main-btn" data-go="mapScreen">Ver en el mapa</button></section>
+    <section class="screen map" id="mapScreen"><button class="back" data-go="homeScreen">‹</button><h2>Mapa</h2><input class="map-search" placeholder="Buscar en el mapa"><div class="map-visual"><span class="pin p1">📍</span><span class="pin p2">📍</span><span class="pin p3">📍</span><span class="pin p4">📍</span></div><div class="report-card floating"><span class="icon orange">🚧</span><div><b>Baches en vialidades</b><small>En proceso · Calle Ignacio Zaragoza 100</small></div></div><nav class="bottom-nav"><button data-go="homeScreen">Inicio</button><button data-go="trackingScreen">Reportes</button><button class="active">Mapa</button><button data-go="notificationsScreen">Alertas</button><button data-go="profileScreen">Perfil</button></nav></section>
+    <section class="screen notifications" id="notificationsScreen"><button class="back" data-go="homeScreen">‹</button><h2>Notificaciones</h2><div class="tabs"><button class="active">Todas</button><button>No leídas</button></div><div class="notice">📍 Tu reporte #INC-2024-0012 ha cambiado a en proceso.</div><div class="notice">💧 Tu reporte #INC-2024-0011 ha sido resuelto.</div><div class="notice">💬 Gracias por reportar. Tu participación mejora nuestra comunidad.</div></section>
+    <section class="screen profile" id="profileScreen"><div class="profile-top"><div class="avatar">A</div><h2>Ana García</h2><p>Ciudadana activa</p><span>120 pts</span></div><div class="menu-list"><button>Mis reportes <span>›</span></button><button>Mis datos <span>›</span></button><button>Configuración <span>›</span></button><button>Ayuda y soporte <span>›</span></button><button>Acerca de la app <span>›</span></button><button data-go="loginScreen" class="logout">Cerrar sesión</button></div><nav class="bottom-nav"><button data-go="homeScreen">Inicio</button><button data-go="trackingScreen">Reportes</button><button data-go="mapScreen">Mapa</button><button data-go="notificationsScreen">Alertas</button><button class="active">Perfil</button></nav></section>
   </main>
-  <script src="./script.js?v=20260522-logo-only"></script>
+  <script src="./script.js?v=20260522-carousel"></script>
 </body>
 </html>
