@@ -2,39 +2,159 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Conecta Martínez: sistema web para reporte, seguimiento y validación de incidencias ciudadanas." />
-  <title>Conecta Mtz | Gestión de Incidencias</title>
-  <link rel="stylesheet" href="./styles.css?v=20260521-3" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="theme-color" content="#f72585" />
+  <title>Conecta Martínez | App Ciudadana</title>
+  <link rel="stylesheet" href="./styles.css?v=20260521-app" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <div class="app-shell">
-    <aside class="sidebar" id="sidebar">
-      <div class="brand"><div class="brand-icon">CM</div><div><strong>Conecta Mtz</strong><small>Gestión de incidencias</small></div></div>
-      <nav class="side-nav">
-        <a href="#inicio">Inicio</a><a href="#ciudadano">Ciudadano</a><a href="#administrador">Administrador</a><a href="#institucion">Apoyo comunitario</a><a href="#reportar">Reportar</a><a href="#estatus">Estatus</a><a href="#dashboard">Estadísticas</a>
-      </nav>
-      <div class="sidebar-card"><span>Objetivo</span><strong>Conectar reportes</strong><p>Registrar, validar, asignar, atender y cerrar incidencias ciudadanas.</p></div>
-    </aside>
-    <div class="main-area">
-      <header class="topbar"><button class="icon-btn" id="menuToggle">☰</button><div class="search-box">Buscar folio, usuario, incidencia o estado...</div><button class="btn ghost" id="themeToggle">Modo oscuro</button><button class="btn ghost" id="openLogin">Iniciar sesión</button></header>
-      <main>
-        <section class="hero" id="inicio"><div class="hero-copy"><span class="pill">Sistema Conecta Martínez</span><h1>Reportar, validar y dar seguimiento a incidencias ciudadanas.</h1><p>Plataforma orientada a tres perfiles principales: ciudadano, administrador e institución responsable de apoyo comunitario.</p><div class="hero-actions"><a class="btn primary" href="#reportar">Reportar incidencia</a><a class="btn secondary" href="#estatus">Consultar estatus</a></div></div><div class="hero-widget glass"><div class="widget-header"><span>Flujo del sistema</span><strong>Incidencias</strong></div><div class="metric-grid"><div><strong>01</strong><span>Registro ciudadano</span></div><div><strong>02</strong><span>Validación admin</span></div><div><strong>03</strong><span>Atención institución</span></div><div><strong>04</strong><span>Cierre y seguimiento</span></div></div></div></section>
-        <section class="section" id="ciudadano"><div class="section-heading"><span class="pill light">Usuario 1</span><h2>Ciudadano</h2><p>El ciudadano puede registrarse, iniciar sesión, reportar incidencias, adjuntar imágenes, consultar estatus y visualizar su historial.</p></div><div class="feature-grid"><article class="feature-card"><span>📝</span><h3>Registrarse</h3><p>Crear una cuenta con datos básicos para poder generar reportes.</p></article><article class="feature-card"><span>🔐</span><h3>Iniciar sesión</h3><p>Acceder al sistema para consultar sus reportes e historial.</p></article><article class="feature-card"><span>📍</span><h3>Reportar incidencias</h3><p>Registrar ubicación, categoría, descripción y evidencia fotográfica.</p></article><article class="feature-card"><span>🖼️</span><h3>Adjuntar imágenes</h3><p>Subir fotografías como evidencia del problema reportado.</p></article><article class="feature-card"><span>🔎</span><h3>Consultar estatus</h3><p>Revisar si la incidencia está pendiente, validada, en proceso o cerrada.</p></article><article class="feature-card"><span>🕘</span><h3>Visualizar historial</h3><p>Consultar el registro de incidencias enviadas anteriormente.</p></article></div></section>
-        <section class="section" id="administrador"><div class="section-heading"><span class="pill light">Usuario 2</span><h2>Administrador</h2><p>El administrador controla usuarios, valida incidencias, actualiza estados, genera seguimiento y consulta estadísticas del sistema.</p></div><div class="feature-grid"><article class="feature-card"><span>👥</span><h3>Gestionar usuarios</h3><p>Administrar cuentas ciudadanas e institucionales.</p></article><article class="feature-card"><span>✅</span><h3>Validar incidencias</h3><p>Revisar reportes y aprobarlos antes de asignarlos.</p></article><article class="feature-card"><span>🔄</span><h3>Actualizar estados</h3><p>Cambiar el estado de cada reporte según su avance.</p></article><article class="feature-card"><span>📌</span><h3>Generar seguimiento</h3><p>Registrar observaciones, avances y acciones realizadas.</p></article><article class="feature-card"><span>📊</span><h3>Consultar estadísticas</h3><p>Visualizar indicadores de reportes, atención y cierre.</p></article><article class="feature-card"><span>🏢</span><h3>Asignar institución</h3><p>Canalizar incidencias a apoyo comunitario u otra área responsable.</p></article></div></section>
-        <section class="section" id="institucion"><div class="section-heading"><span class="pill light">Usuario 3</span><h2>Institución responsable: Apoyo comunitario</h2><p>La institución responsable visualiza incidencias asignadas, actualiza avances, da solución y cierra reportes atendidos.</p></div><div class="feature-grid"><article class="feature-card"><span>📥</span><h3>Visualizar asignadas</h3><p>Consultar incidencias canalizadas por el administrador.</p></article><article class="feature-card"><span>🛠️</span><h3>Actualizar avance</h3><p>Registrar acciones de atención y porcentaje de progreso.</p></article><article class="feature-card"><span>🤝</span><h3>Dar solución</h3><p>Atender la incidencia conforme a los recursos disponibles.</p></article><article class="feature-card"><span>🏁</span><h3>Cerrar reportes</h3><p>Marcar el reporte como resuelto y documentar evidencia final.</p></article></div></section>
-        <section class="section contact" id="reportar"><div class="contact-layout"><div><span class="pill light">Reporte ciudadano</span><h2>Reportar incidencia</h2><p>Formulario para capturar una incidencia con datos del ciudadano, categoría, ubicación, descripción y evidencia.</p><div class="map-card"><iframe title="Mapa de Martínez de la Torre" src="https://www.openstreetmap.org/export/embed.html?bbox=-97.10%2C20.03%2C-96.98%2C20.12&layer=mapnik" loading="lazy"></iframe></div></div><form class="contact-form" id="contactForm"><input name="nombre" type="text" placeholder="Nombre del ciudadano" required /><input name="correo" type="email" placeholder="Correo electrónico" required /><select name="servicio" required><option value="">Tipo de incidencia</option><option>Alumbrado público</option><option>Baches o vialidad</option><option>Recolección de basura</option><option>Apoyo comunitario</option><option>Seguridad o riesgo</option></select><input name="ubicacion" type="text" placeholder="Ubicación o colonia" required /><textarea name="mensaje" placeholder="Descripción de la incidencia" required></textarea><input type="file" id="imageUpload" accept="image/*" /><button class="btn primary" type="submit">Enviar incidencia</button><p class="form-status" id="formStatus"></p></form></div></section>
-        <section class="section" id="estatus"><div class="section-heading left"><span class="pill light">Seguimiento</span><h2>Consultar estatus e historial</h2><p>Vista demostrativa para revisar folio, ciudadano, tipo de incidencia, institución asignada y estado.</p></div><div class="table-card"><table><thead><tr><th>Folio</th><th>Ciudadano</th><th>Incidencia</th><th>Institución</th><th>Estado</th></tr></thead><tbody id="requestsTable"></tbody></table></div></section>
-        <section class="section dashboard-section" id="dashboard"><div class="section-heading left"><span class="pill light">Estadísticas</span><h2>Indicadores administrativos</h2></div><div class="dashboard-grid"><div class="dash-card"><span>Total incidencias</span><strong id="dashTotal">24</strong><small>Reportes registrados</small></div><div class="dash-card"><span>Validadas</span><strong>18</strong><small>Por administrador</small></div><div class="dash-card"><span>En proceso</span><strong>9</strong><small>Apoyo comunitario</small></div><div class="dash-card"><span>Cerradas</span><strong>7</strong><small>Solucionadas</small></div></div><div class="charts-grid"><div class="chart-card"><h3>Incidencias por semana</h3><canvas id="requestsChart"></canvas></div><div class="chart-card"><h3>Estados de incidencias</h3><canvas id="servicesChart"></canvas></div></div></section>
-      </main>
-    </div>
-  </div>
-  <div class="login-modal" id="loginModal"><div class="login-card"><button class="close" id="closeLogin">×</button><h2>Inicio de sesión</h2><p>Seleccionar perfil: ciudadano, administrador o apoyo comunitario. Prototipo: admin · conecta2026.</p><form id="loginForm"><select id="role"><option>Ciudadano</option><option>Administrador</option><option>Apoyo comunitario</option></select><input id="user" type="text" placeholder="Usuario" required /><input id="password" type="password" placeholder="Contraseña" required /><button class="btn primary" type="submit">Ingresar</button><p id="loginStatus"></p></form></div></div>
-  <div class="chat-widget" id="chatWidget"><div class="chat-header">Atención Conecta Mtz <button id="toggleChat">−</button></div><div class="chat-body" id="chatBody"><p><strong>Asistente:</strong> Hola, puedes reportar una incidencia o consultar su estatus.</p></div><form class="chat-form" id="chatForm"><input id="chatInput" type="text" placeholder="Escribir mensaje..." /><button type="submit">Enviar</button></form></div>
-  <div class="toast" id="toast"></div><script src="./script.js?v=20260521-3"></script>
+  <main class="mobile-app">
+    <section class="screen active splash" id="splashScreen">
+      <div class="logo-mark">C</div>
+      <h1>Conecta<span>Martínez</span></h1>
+      <p>Juntos resolvemos más</p>
+      <small>Aplicación móvil para reportar, dar seguimiento y resolver incidencias en nuestra comunidad.</small>
+      <button class="main-btn" data-go="onboardingScreen">Comenzar</button>
+    </section>
+
+    <section class="screen onboarding" id="onboardingScreen">
+      <button class="skip" data-go="loginScreen">Omitir</button>
+      <div class="illustration">📍</div>
+      <h2>Tu comunidad,<br>tu <span>voz</span>,<br>tu cambio.</h2>
+      <p>Reportar incidencias, dar seguimiento y ayudar a mejorar Martínez de la Torre.</p>
+      <div class="dots"><span></span><span></span><span></span></div>
+      <button class="circle-btn" data-go="loginScreen">➜</button>
+    </section>
+
+    <section class="screen login" id="loginScreen">
+      <h2>¡Bienvenido!</h2>
+      <p>Iniciar sesión para continuar</p>
+      <form id="loginForm" class="app-form">
+        <label>Correo electrónico</label>
+        <input type="email" placeholder="correo@ejemplo.com" required>
+        <label>Contraseña</label>
+        <input type="password" placeholder="••••••••" required>
+        <select id="roleSelect">
+          <option>Ciudadano</option>
+          <option>Administrador</option>
+          <option>Apoyo comunitario</option>
+        </select>
+        <button class="main-btn" type="submit">Iniciar sesión</button>
+      </form>
+      <p class="register">¿No tienes cuenta? <b>Regístrate</b></p>
+      <div class="social-row"><button>Google</button><button>Facebook</button></div>
+    </section>
+
+    <section class="screen home" id="homeScreen">
+      <header class="app-header"><div><b>¡Hola, Ana! 👋</b><small>¿Qué incidencia quieres reportar hoy?</small></div><button class="bell" data-go="notificationsScreen">🔔</button></header>
+      <button class="main-btn wide" data-go="categoriesScreen">+ Nueva incidencia</button>
+      <h3>Accesos rápidos</h3>
+      <div class="quick-grid">
+        <button data-category="Alumbrado público" data-go="reportInfoScreen">💡<span>Alumbrado público</span></button>
+        <button data-category="Baches en vialidades" data-go="reportInfoScreen">🚧<span>Baches</span></button>
+        <button data-category="Fugas de agua" data-go="reportInfoScreen">💧<span>Fuga de agua</span></button>
+        <button data-category="Basura" data-go="reportInfoScreen">🗑️<span>Basura</span></button>
+      </div>
+      <div class="section-title"><h3>Mis reportes</h3><button data-go="trackingScreen">Ver todos</button></div>
+      <div class="report-card" data-go="trackingScreen"><span class="icon green">🏠</span><div><b>#INC-2024-0012</b><small>En revisión</small></div><span>›</span></div>
+      <div class="report-card" data-go="trackingScreen"><span class="icon cyan">🚧</span><div><b>#INC-2024-0011</b><small>En proceso</small></div><span>›</span></div>
+      <nav class="bottom-nav"><button class="active" data-go="homeScreen">Inicio</button><button data-go="trackingScreen">Reportes</button><button data-go="mapScreen">Mapa</button><button data-go="notificationsScreen">Alertas</button><button data-go="profileScreen">Perfil</button></nav>
+    </section>
+
+    <section class="screen categories" id="categoriesScreen">
+      <button class="back" data-go="homeScreen">‹</button>
+      <h2>Nueva incidencia</h2>
+      <p class="center">¿Qué tipo de incidencia quieres reportar?</p>
+      <div class="category-list">
+        <button data-category="Alumbrado público" data-go="reportInfoScreen">💡 Alumbrado público <span>›</span></button>
+        <button data-category="Baches en vialidades" data-go="reportInfoScreen">🚧 Baches en vialidades <span>›</span></button>
+        <button data-category="Fugas de agua" data-go="reportInfoScreen">💧 Fugas de agua <span>›</span></button>
+        <button data-category="Recolección de basura" data-go="reportInfoScreen">🗑️ Recolección de basura <span>›</span></button>
+        <button data-category="Áreas verdes" data-go="reportInfoScreen">🌳 Áreas verdes <span>›</span></button>
+        <button data-category="Otro" data-go="reportInfoScreen">📌 Otro <span>›</span></button>
+      </div>
+      <div class="tip">Tu reporte es muy importante para mejorar nuestra comunidad.</div>
+    </section>
+
+    <section class="screen form-screen" id="reportInfoScreen">
+      <button class="back" data-go="categoriesScreen">‹</button>
+      <h2>Nueva incidencia</h2>
+      <div class="steps"><b>1. Información</b><span>2. Ubicación</span><span>3. Evidencia</span><span>4. Confirmar</span></div>
+      <form class="app-form" id="incidentForm">
+        <label>Descripción del problema</label>
+        <textarea id="desc" placeholder="Cuéntanos qué está pasando..." required></textarea>
+        <label>¿Desde cuándo ocurre?</label>
+        <select><option>Selecciona una opción</option><option>Hoy</option><option>Esta semana</option><option>Hace más tiempo</option></select>
+        <label>¿Qué tan grave es?</label>
+        <div class="severity"><button type="button">Baja</button><button type="button" class="active">Media</button><button type="button">Alta</button></div>
+        <button class="main-btn" type="button" data-go="locationScreen">Siguiente</button>
+      </form>
+    </section>
+
+    <section class="screen form-screen" id="locationScreen">
+      <button class="back" data-go="reportInfoScreen">‹</button>
+      <h2>Nueva incidencia</h2>
+      <div class="steps"><b>✓ Información</b><b>2. Ubicación</b><span>3. Evidencia</span><span>4. Confirmar</span></div>
+      <h3>Selecciona la ubicación exacta</h3>
+      <div class="mini-map">📍<small>Calle Ignacio Zaragoza 100<br>Centro, Martínez de la Torre, Ver.</small></div>
+      <div class="dual-actions"><button data-go="reportInfoScreen">Volver</button><button class="main-btn" data-go="evidenceScreen">Siguiente</button></div>
+    </section>
+
+    <section class="screen form-screen" id="evidenceScreen">
+      <button class="back" data-go="locationScreen">‹</button>
+      <h2>Nueva incidencia</h2>
+      <div class="steps"><b>✓ Información</b><b>✓ Ubicación</b><b>3. Evidencia</b><span>4. Confirmar</span></div>
+      <h3>Agrega evidencia</h3>
+      <label class="upload-box">📷<span>Tomar foto o seleccionar imagen</span><input type="file" accept="image/*" hidden></label>
+      <div class="photo-row"><div></div><div></div><div></div></div>
+      <div class="dual-actions"><button data-go="locationScreen">Volver</button><button class="main-btn" data-go="confirmScreen">Siguiente</button></div>
+    </section>
+
+    <section class="screen form-screen" id="confirmScreen">
+      <button class="back" data-go="evidenceScreen">‹</button>
+      <h2>Nueva incidencia</h2>
+      <div class="steps"><b>✓ Información</b><b>✓ Ubicación</b><b>✓ Evidencia</b><b>4. Confirmar</b></div>
+      <h3>Revisa tu reporte</h3>
+      <div class="summary-card"><p><b>Tipo:</b> <span id="selectedCategory">Baches en vialidades</span></p><p><b>Descripción:</b> Hay un bache grande que representa riesgo para vehículos.</p><p><b>Ubicación:</b> Calle Ignacio Zaragoza 100</p><p><b>Evidencia:</b> 3 fotos</p></div>
+      <div class="dual-actions"><button data-go="evidenceScreen">Volver</button><button class="main-btn" id="sendReport">Enviar reporte</button></div>
+    </section>
+
+    <section class="screen tracking" id="trackingScreen">
+      <button class="back" data-go="homeScreen">‹</button>
+      <h2>Detalle del reporte</h2>
+      <div class="status-banner">En proceso<br><small>Tu reporte está siendo atendido</small></div>
+      <h3>#INC-2024-0012<br><span>Baches en vialidades</span></h3>
+      <div class="timeline"><p>✅ Reporte recibido</p><p>✅ En revisión</p><p>🟠 En proceso</p><p>⚪ Resuelto pendiente</p></div>
+      <button class="main-btn" data-go="mapScreen">Ver en el mapa</button>
+    </section>
+
+    <section class="screen map" id="mapScreen">
+      <button class="back" data-go="homeScreen">‹</button>
+      <h2>Mapa</h2>
+      <input class="map-search" placeholder="Buscar en el mapa">
+      <div class="map-visual"><span class="pin p1">📍</span><span class="pin p2">📍</span><span class="pin p3">📍</span><span class="pin p4">📍</span></div>
+      <div class="report-card floating"><span class="icon orange">🚧</span><div><b>Baches en vialidades</b><small>En proceso · Calle Ignacio Zaragoza 100</small></div></div>
+      <nav class="bottom-nav"><button data-go="homeScreen">Inicio</button><button data-go="trackingScreen">Reportes</button><button class="active">Mapa</button><button data-go="notificationsScreen">Alertas</button><button data-go="profileScreen">Perfil</button></nav>
+    </section>
+
+    <section class="screen notifications" id="notificationsScreen">
+      <button class="back" data-go="homeScreen">‹</button>
+      <h2>Notificaciones</h2>
+      <div class="tabs"><button class="active">Todas</button><button>No leídas</button></div>
+      <div class="notice">📍 Tu reporte #INC-2024-0012 ha cambiado a en proceso.</div>
+      <div class="notice">💧 Tu reporte #INC-2024-0011 ha sido resuelto.</div>
+      <div class="notice">💬 Gracias por reportar. Tu participación mejora nuestra comunidad.</div>
+    </section>
+
+    <section class="screen profile" id="profileScreen">
+      <div class="profile-top"><div class="avatar">A</div><h2>Ana García</h2><p>Ciudadana activa</p><span>120 pts</span></div>
+      <div class="menu-list"><button>Mis reportes <span>›</span></button><button>Mis datos <span>›</span></button><button>Configuración <span>›</span></button><button>Ayuda y soporte <span>›</span></button><button>Acerca de la app <span>›</span></button><button data-go="loginScreen" class="logout">Cerrar sesión</button></div>
+      <nav class="bottom-nav"><button data-go="homeScreen">Inicio</button><button data-go="trackingScreen">Reportes</button><button data-go="mapScreen">Mapa</button><button data-go="notificationsScreen">Alertas</button><button class="active">Perfil</button></nav>
+    </section>
+  </main>
+  <script src="./script.js?v=20260521-app"></script>
 </body>
 </html>
