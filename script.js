@@ -1,4 +1,17 @@
+import {
+  registrarUsuario,
+  iniciarSesion,
+  cerrarSesion,
+  escucharSesion,
+  crearIncidencia,
+  obtenerIncidenciasPorUsuario
+} from './firebase-service.js';
+
 const screens = document.querySelectorAll('.screen');
+let currentUser = null;
+let selectedCategoryValue = 'Baches en vialidades';
+let selectedEvidenceName = 'Sin archivo';
+let selectedSeverity = 'Media';
 
 function showScreen(target) {
   screens.forEach(screen => screen.classList.remove('active'));
@@ -6,18 +19,206 @@ function showScreen(target) {
   window.scrollTo(0, 0);
 }
 
+function setAuthMessage(message, type = 'info') {
+  const authMessage = document.getElementById('authMessage');
+  if (!authMessage) return;
+  authMessage.textContent = message;
+  authMessage.dataset.type = type;
+}
+
+function friendlyFirebaseError(error) {
+  const code = error?.code || '';
+  if (code.includes('auth/email-already-in-use')) return 'Este correo ya está registrado. Inicia sesión.';
+  if (code.includes('auth/invalid-email')) return 'El correo electrónico no es válido.';
+  if (code.includes('auth/weak-password')) return 'La contraseña debe tener al menos 6 caracteres.';
+  if (code.includes('auth/invalid-credential') || code.includes('auth/wrong-password') || code.includes('auth/user-not-found')) return 'Correo o contraseña incorrectos.';
+  if (code.includes('permission-denied')) return 'No tienes permisos para realizar esta acción. Revisa las reglas de Firestore.';
+  return 'Ocurrió un error. Intenta nuevamente.';
+}
+
+async function loadUserReports() {
+  const reportsList = document.getElementById('reportsList');
+  if (!reportsList || !currentUser) return;
+
+  reportsList.innerHTML = '<div class="report-card"><span class="icon cyan">⏳</span><div><b>Cargando reportes...</b><small>Consultando Firestore</small></div></div>';
+
+  try {
+    const reports = await obtenerIncidenciasPorUsuario(currentUser.uid);
+    if (!reports.length) {
+      reportsList.innerHTML = '<div class="report-card"><span class="icon green">ℹ️</span><div><b>Sin reportes todavía</b><small>Crea tu primera incidencia</small></div><span>›</span></div>';
+      return;
+    }
+
+    reportsList.innerHTML = reports.slice(0, 5).map(report => `
+      <div class="report-card" data-go="trackingScreen">
+        <span class="icon cyan">${getCategoryIcon(report.tipo)}</span>
+        <div>
+          <b>${report.folio || report.tipo || 'Incidencia'}</b>
+          <small>${report.estado || 'Pendiente'} · ${report.ubicacion || 'Sin ubicación'}</small>
+        </div>
+        <span>›</span>
+      </div>
+    `).join('');
+
+    reportsList.querySelectorAll('[data-go]').forEach(card => {
+      card.addEventListener('click', () => showScreen(card.dataset.go));
+    });
+  } catch (error) {
+    reportsList.innerHTML = '<div class="report-card"><span class="icon orange">⚠️</span><div><b>No se pudieron cargar los reportes</b><small>Revisa conexión o reglas de Firestore</small></div></div>';
+  }
+}
+
+function getCategoryIcon(category = '') {
+  const lower = category.toLowerCase();
+  if (lower.includes('alumbrado')) return '💡';
+  if (lower.includes('bache')) return '🚧';
+  if (lower.includes('agua') || lower.includes('fuga')) return '💧';
+  if (lower.includes('basura')) return '🗑️';
+  if (lower.includes('verde')) return '🌳';
+  return '📌';
+}
+
+function updateSummary() {
+  const desc = document.getElementById('desc')?.value?.trim() || 'Completa la descripción del problema.';
+  const summaryDesc = document.getElementById('summaryDesc');
+  const summaryEvidence = document.getElementById('summaryEvidence');
+  const selectedCategory = document.getElementById('selectedCategory');
+
+  if (summaryDesc) summaryDesc.textContent = desc;
+  if (summaryEvidence) summaryEvidence.textContent = selectedEvidenceName;
+  if (selectedCategory) selectedCategory.textContent = selectedCategoryValue;
+}
+
 document.querySelectorAll('[data-go]').forEach(btn => {
-  btn.addEventListener('click', () => showScreen(btn.dataset.go));
+  btn.addEventListener('click', () => {
+    if (btn.dataset.go === 'confirmScreen') updateSummary();
+    showScreen(btn.dataset.go);
+  });
 });
 
-document.getElementById('loginForm')?.addEventListener('submit', event => {
+document.getElementById('loginForm')?.addEventListener('submit', async event => {
   event.preventDefault();
-  showScreen('homeScreen');
+  const email = document.getElementById('loginEmail')?.value?.trim();
+  const password = document.getElementById('loginPassword')?.value;
+
+  if (!email || !password) {
+    setAuthMessage('Escribe correo y contraseña.', 'error');
+    return;
+  }
+
+  setAuthMessage('Iniciando sesión...', 'info');
+  try {
+    await iniciarSesion(email, password);
+    setAuthMessage('Sesión iniciada correctamente.', 'success');
+    showScreen('homeScreen');
+  } catch (error) {
+    setAuthMessage(friendlyFirebaseError(error), 'error');
+  }
 });
 
-document.getElementById('sendReport')?.addEventListener('click', () => {
-  alert('Reporte enviado correctamente');
-  showScreen('trackingScreen');
+document.getElementById('registerBtn')?.addEventListener('click', async () => {
+  const email = document.getElementById('loginEmail')?.value?.trim();
+  const password = document.getElementById('loginPassword')?.value;
+
+  if (!email || !password) {
+    setAuthMessage('Para registrarte escribe correo y contraseña.', 'error');
+    return;
+  }
+
+  setAuthMessage('Registrando usuario...', 'info');
+  try {
+    await registrarUsuario(email, password);
+    setAuthMessage('Registro exitoso. Bienvenida a Conecta Martínez.', 'success');
+    showScreen('homeScreen');
+  } catch (error) {
+    setAuthMessage(friendlyFirebaseError(error), 'error');
+  }
+});
+
+document.getElementById('logoutBtn')?.addEventListener('click', async () => {
+  try {
+    await cerrarSesion();
+    showScreen('loginScreen');
+    setAuthMessage('Sesión cerrada.', 'info');
+  } catch (error) {
+    setAuthMessage('No se pudo cerrar sesión.', 'error');
+  }
+});
+
+document.getElementById('sendReport')?.addEventListener('click', async () => {
+  if (!currentUser) {
+    alert('Debes iniciar sesión para enviar un reporte.');
+    showScreen('loginScreen');
+    return;
+  }
+
+  const desc = document.getElementById('desc')?.value?.trim();
+  const tiempo = document.getElementById('incidentTime')?.value || 'No especificado';
+
+  if (!desc) {
+    alert('Agrega una descripción del problema.');
+    showScreen('reportInfoScreen');
+    return;
+  }
+
+  try {
+    const folio = `#INC-${new Date().getFullYear()}-${Math.floor(Date.now() / 1000).toString().slice(-5)}`;
+    await crearIncidencia({
+      folio,
+      tipo: selectedCategoryValue,
+      descripcion: desc,
+      tiempo,
+      gravedad: selectedSeverity,
+      ubicacion: 'Calle Ignacio Zaragoza 100, Centro, Martínez de la Torre, Ver.',
+      evidenciaNombre: selectedEvidenceName,
+      idCiudadano: currentUser.uid,
+      correoCiudadano: currentUser.email,
+      estado: 'Pendiente',
+      asignadoA: 'Apoyo comunitario'
+    });
+
+    alert(`Reporte enviado correctamente: ${folio}`);
+    document.getElementById('incidentForm')?.reset();
+    selectedEvidenceName = 'Sin archivo';
+    const evidenceLabel = document.getElementById('evidenceLabel');
+    if (evidenceLabel) evidenceLabel.textContent = 'Tomar foto o seleccionar imagen';
+    await loadUserReports();
+    showScreen('homeScreen');
+  } catch (error) {
+    alert(friendlyFirebaseError(error));
+  }
+});
+
+document.getElementById('evidenceFile')?.addEventListener('change', event => {
+  const file = event.target.files?.[0];
+  selectedEvidenceName = file ? file.name : 'Sin archivo';
+  const evidenceLabel = document.getElementById('evidenceLabel');
+  if (evidenceLabel) evidenceLabel.textContent = selectedEvidenceName;
+  updateSummary();
+});
+
+document.querySelectorAll('.severity button').forEach(button => {
+  button.addEventListener('click', () => {
+    document.querySelectorAll('.severity button').forEach(btn => btn.classList.remove('active'));
+    button.classList.add('active');
+    selectedSeverity = button.textContent.trim();
+  });
+});
+
+escucharSesion(user => {
+  currentUser = user;
+  const homeGreeting = document.getElementById('homeGreeting');
+  const profileName = document.getElementById('profileName');
+  const profileRole = document.getElementById('profileRole');
+  const role = document.getElementById('roleSelect')?.value || 'Ciudadano';
+
+  if (user) {
+    const name = user.email?.split('@')[0] || 'Usuario';
+    if (homeGreeting) homeGreeting.textContent = `¡Hola, ${name}! 👋`;
+    if (profileName) profileName.textContent = name;
+    if (profileRole) profileRole.textContent = `${role} activo`;
+    loadUserReports();
+  }
 });
 
 const carousel = document.getElementById('incidentCarousel');
@@ -35,14 +236,11 @@ let autoSlideTimer = null;
 function updateCarousel(index) {
   if (!slides.length) return;
   currentSlide = (index + slides.length) % slides.length;
-
   slides.forEach((slide, i) => {
     slide.classList.toggle('active', i === currentSlide);
     slide.style.transform = `translateX(${(i - currentSlide) * 100}%)`;
   });
-
   dots.forEach((dot, i) => dot.classList.toggle('active', i === currentSlide));
-
   const activeSlide = slides[currentSlide];
   if (title) title.innerHTML = activeSlide.dataset.title || '';
   if (text) text.textContent = activeSlide.dataset.text || '';
@@ -108,11 +306,7 @@ if (carousel && slides.length) {
     isDragging = false;
     resetTransition();
     const distance = currentX - startX;
-    if (Math.abs(distance) > 55) {
-      distance < 0 ? updateCarousel(currentSlide + 1) : previousSlide();
-    } else {
-      updateCarousel(currentSlide);
-    }
+    Math.abs(distance) > 55 ? (distance < 0 ? updateCarousel(currentSlide + 1) : previousSlide()) : updateCarousel(currentSlide);
     startAutoSlide();
   });
 
@@ -134,11 +328,7 @@ if (carousel && slides.length) {
     isDragging = false;
     resetTransition();
     const distance = currentX - startX;
-    if (Math.abs(distance) > 55) {
-      distance < 0 ? updateCarousel(currentSlide + 1) : previousSlide();
-    } else {
-      updateCarousel(currentSlide);
-    }
+    Math.abs(distance) > 55 ? (distance < 0 ? updateCarousel(currentSlide + 1) : previousSlide()) : updateCarousel(currentSlide);
     startAutoSlide();
   });
 
@@ -159,7 +349,8 @@ if (carousel && slides.length) {
 
 document.querySelectorAll('[data-category]').forEach(button => {
   button.addEventListener('click', () => {
+    selectedCategoryValue = button.dataset.category || selectedCategoryValue;
     const selected = document.getElementById('selectedCategory');
-    if (selected) selected.textContent = button.dataset.category;
+    if (selected) selected.textContent = selectedCategoryValue;
   });
 });
