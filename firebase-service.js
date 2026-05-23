@@ -14,7 +14,6 @@ import {
   getDocs,
   query,
   where,
-  orderBy,
   serverTimestamp,
   updateDoc,
   doc,
@@ -25,6 +24,17 @@ import {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+
+function fechaMillis(valor) {
+  if (!valor) return 0;
+  if (typeof valor.toMillis === 'function') return valor.toMillis();
+  if (valor.seconds) return valor.seconds * 1000;
+  return 0;
+}
+
+function ordenarPorFechaDesc(a, b) {
+  return fechaMillis(b.fechaRegistro) - fechaMillis(a.fechaRegistro);
+}
 
 export async function registrarUsuario(correo, password, rol = 'Ciudadano') {
   const credencial = await createUserWithEmailAndPassword(auth, correo, password);
@@ -77,27 +87,30 @@ export async function crearIncidencia(data) {
 export async function obtenerIncidenciasPorUsuario(userId) {
   const q = query(
     collection(db, 'incidencias'),
-    where('idCiudadano', '==', userId),
-    orderBy('fechaRegistro', 'desc')
+    where('idCiudadano', '==', userId)
   );
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(documento => ({ id: documento.id, ...documento.data() }));
+  return snapshot.docs
+    .map(documento => ({ id: documento.id, ...documento.data() }))
+    .sort(ordenarPorFechaDesc);
 }
 
 export async function obtenerTodasLasIncidencias() {
-  const q = query(collection(db, 'incidencias'), orderBy('fechaRegistro', 'desc'));
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(documento => ({ id: documento.id, ...documento.data() }));
+  const snapshot = await getDocs(collection(db, 'incidencias'));
+  return snapshot.docs
+    .map(documento => ({ id: documento.id, ...documento.data() }))
+    .sort(ordenarPorFechaDesc);
 }
 
 export async function obtenerIncidenciasAsignadas(nombreInstitucion = 'Apoyo comunitario') {
   const q = query(
     collection(db, 'incidencias'),
-    where('asignadoA', '==', nombreInstitucion),
-    orderBy('fechaRegistro', 'desc')
+    where('asignadoA', '==', nombreInstitucion)
   );
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(documento => ({ id: documento.id, ...documento.data() }));
+  return snapshot.docs
+    .map(documento => ({ id: documento.id, ...documento.data() }))
+    .sort(ordenarPorFechaDesc);
 }
 
 export async function actualizarEstadoIncidencia(idIncidencia, estado, comentario = '') {
