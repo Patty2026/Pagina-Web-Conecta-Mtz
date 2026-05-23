@@ -32,3 +32,52 @@
   <script type="module" src="./script.js?v=20260523-profile-crud-1"></script>
 </body>
 </html>
+/* ===============================
+   FIX DEFINITIVO: PERFIL ACORDEÓN
+================================ */
+
+function activarPerfilAcordeon() {
+  const botonesPerfil = document.querySelectorAll('.profile-toggle');
+
+  botonesPerfil.forEach(boton => {
+    boton.onclick = function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const panelId = this.getAttribute('data-profile-panel');
+      const panel = document.getElementById(panelId);
+
+      if (!panel) {
+        console.warn('No existe el panel:', panelId);
+        return;
+      }
+
+      const estaAbierto = panel.classList.contains('open');
+
+      document.querySelectorAll('.profile-panel').forEach(p => {
+        p.classList.remove('open');
+        p.style.display = 'none';
+      });
+
+      document.querySelectorAll('.profile-toggle').forEach(b => {
+        b.classList.remove('active');
+      });
+
+      if (!estaAbierto) {
+        panel.classList.add('open');
+        panel.style.display = 'block';
+        this.classList.add('active');
+      } else {
+        panel.classList.remove('open');
+        panel.style.display = 'none';
+        this.classList.remove('active');
+      }
+    };
+  });
+}
+
+activarPerfilAcordeon();
+
+document.addEventListener('DOMContentLoaded', activarPerfilAcordeon);
+
+window.addEventListener('load', activarPerfilAcordeon);
