@@ -407,3 +407,10 @@ h3{font-size:1rem;margin:12px 0;color:#17194f}
   color:#f72585;
   background:rgba(255,255,255,.96);
 }
+.profile-panel {
+  display: none;
+}
+
+.profile-panel.open {
+  display: block !important;
+}
