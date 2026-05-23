@@ -14,12 +14,22 @@ let selectedEvidenceName = 'Sin archivo';
 let selectedSeverity = 'Media';
 let currentLocation = null;
 let locationLabel = 'Ubicación no capturada';
+let mapInstance = null;
+let mapMarker = null;
+
+const defaultLocation = {
+  latitud: 20.0708,
+  longitud: -97.0608
+};
 
 function showScreen(target) {
   screens.forEach(screen => screen.classList.remove('active'));
   document.getElementById(target)?.classList.add('active');
   window.scrollTo(0, 0);
-  if (target === 'locationScreen') requestUserLocation();
+  if (target === 'locationScreen') {
+    initMap();
+    setTimeout(() => mapInstance?.invalidateSize(), 300);
+  }
 }
 
 function setAuthMessage(message, type = 'info') {
@@ -44,33 +54,92 @@ function friendlyFirebaseError(error) {
 }
 
 function updateLocationUI(message) {
-  const mapSmall = document.querySelector('#locationScreen .mini-map small');
+  const locationText = document.getElementById('locationText');
   const summaryLocation = document.getElementById('summaryLocation');
-  if (mapSmall) mapSmall.innerHTML = message.replaceAll('\n', '<br>');
+  if (locationText) locationText.innerHTML = message.replaceAll('\n', '<br>');
   if (summaryLocation) summaryLocation.textContent = message.replaceAll('\n', ' · ');
 }
 
-function requestUserLocation() {
-  if (!navigator.geolocation) {
-    locationLabel = 'Geolocalización no disponible en este dispositivo';
-    updateLocationUI(locationLabel);
+function setSelectedLocation(lat, lng, message = 'Ubicación seleccionada en el mapa', accuracy = null) {
+  currentLocation = {
+    latitud: lat,
+    longitud: lng,
+    precisionMetros: accuracy,
+    fuente: message
+  };
+
+  if (mapMarker) mapMarker.setLatLng([lat, lng]);
+  if (mapInstance) mapInstance.setView([lat, lng], 16);
+
+  locationLabel = `${message}\nLat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}${accuracy ? `\nPrecisión: ${accuracy} m` : ''}`;
+  updateLocationUI(locationLabel);
+  updateSummary();
+}
+
+function initMap() {
+  const mapContainer = document.getElementById('realMap');
+  if (!mapContainer || typeof L === 'undefined') return;
+
+  if (mapInstance) {
+    setTimeout(() => mapInstance.invalidateSize(), 250);
     return;
   }
+
+  mapInstance = L.map('realMap').setView([defaultLocation.latitud, defaultLocation.longitud], 14);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '© OpenStreetMap'
+  }).addTo(mapInstance);
+
+  mapMarker = L.marker([defaultLocation.latitud, defaultLocation.longitud], {
+    draggable: true
+  }).addTo(mapInstance);
+
+  mapMarker.bindPopup('Mueve este marcador a la zona exacta de la incidencia.').openPopup();
+
+  mapMarker.on('dragend', () => {
+    const position = mapMarker.getLatLng();
+    setSelectedLocation(position.lat, position.lng, 'Ubicación ajustada manualmente en el mapa');
+  });
+
+  mapInstance.on('click', event => {
+    setSelectedLocation(event.latlng.lat, event.latlng.lng, 'Ubicación seleccionada en el mapa');
+  });
+
+  setSelectedLocation(defaultLocation.latitud, defaultLocation.longitud, 'Ubicación inicial: Martínez de la Torre');
+}
+
+function requestUserLocation() {
+  initMap();
+
+  if (!navigator.geolocation) {
+    setSelectedLocation(
+      defaultLocation.latitud,
+      defaultLocation.longitud,
+      'GPS no disponible. Mueve el marcador para indicar la zona'
+    );
+    return;
+  }
+
   locationLabel = 'Solicitando ubicación GPS...';
   updateLocationUI(locationLabel);
+
   navigator.geolocation.getCurrentPosition(
     position => {
       const { latitude, longitude, accuracy } = position.coords;
-      currentLocation = { latitud: latitude, longitud: longitude, precisionMetros: Math.round(accuracy || 0) };
-      locationLabel = `Ubicación capturada\nLat: ${latitude.toFixed(6)}, Lng: ${longitude.toFixed(6)}\nPrecisión: ${Math.round(accuracy || 0)} m`;
-      updateLocationUI(locationLabel);
+      setSelectedLocation(
+        latitude,
+        longitude,
+        'Ubicación GPS capturada. Puedes mover el marcador si la incidencia está en otra zona',
+        Math.round(accuracy || 0)
+      );
     },
     error => {
-      currentLocation = null;
-      if (error.code === 1) locationLabel = 'Permiso de ubicación denegado';
-      else if (error.code === 2) locationLabel = 'No se pudo obtener la ubicación';
-      else locationLabel = 'Tiempo de espera agotado al obtener ubicación';
-      updateLocationUI(locationLabel);
+      let message = 'No se permitió GPS. Mueve el marcador para indicar la zona';
+      if (error.code === 2) message = 'No se pudo obtener la ubicación. Mueve el marcador manualmente';
+      if (error.code === 3) message = 'Tiempo agotado. Mueve el marcador manualmente';
+      setSelectedLocation(defaultLocation.latitud, defaultLocation.longitud, message);
     },
     { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
   );
@@ -233,14 +302,13 @@ document.querySelectorAll('[data-category]').forEach(button => button.addEventLi
 document.addEventListener('click', event => {
   const target = event.target.closest('[data-go]');
   if (!target) return;
-
   const screenId = target.dataset.go;
   if (!screenId) return;
-
-  document.querySelectorAll('.screen').forEach(screen => {
-    screen.classList.remove('active');
-  });
-
+  document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
   document.getElementById(screenId)?.classList.add('active');
   window.scrollTo(0, 0);
+  if (screenId === 'locationScreen') {
+    initMap();
+    setTimeout(() => mapInstance?.invalidateSize(), 300);
+  }
 });
