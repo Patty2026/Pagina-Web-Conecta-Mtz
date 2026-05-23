@@ -30,6 +30,24 @@
     <section class="screen notifications" id="notificationsScreen"><button class="back" data-go="homeScreen">‹</button><h2>Notificaciones</h2><div class="tabs"><button class="active">Todas</button><button>No leídas</button></div><div class="notice">📍 Tu reporte cambió a en proceso.</div><div class="notice">💧 Tus reportes se guardarán en Firestore.</div><div class="notice">💬 Gracias por participar en tu comunidad.</div></section>
     <section class="screen profile" id="profileScreen"><div class="profile-top"><div class="avatar">A</div><h2 id="profileName">Usuario</h2><p id="profileRole">Ciudadano activo</p><span>120 pts</span></div><div class="menu-list"><button>Mis reportes <span>›</span></button><button>Mis datos <span>›</span></button><button>Configuración <span>›</span></button><button>Ayuda y soporte <span>›</span></button><button>Acerca de la app <span>›</span></button><button id="logoutBtn" type="button" class="logout">Cerrar sesión</button></div><nav class="bottom-nav"><button data-go="homeScreen">Inicio</button><button data-go="trackingScreen">Reportes</button><button data-go="mapScreen">Mapa</button><button data-go="notificationsScreen">Alertas</button><button class="active">Perfil</button></nav></section>
   </main>
-  <script type="module" src="./script.js?v=20260522-firebase-fix"></script>
+  <script>
+  window.__goToScreen = function(screenId) {
+    document.querySelectorAll('.screen').forEach(screen => {
+      screen.classList.remove('active');
+    });
+
+    document.getElementById(screenId)?.classList.add('active');
+    window.scrollTo(0, 0);
+  };
+
+  document.addEventListener('click', function(event) {
+    const target = event.target.closest('[data-go]');
+    if (!target) return;
+
+    window.__goToScreen(target.dataset.go);
+  });
+</script>
+
+<script type="module" src="./script.js?v=20260522-firebase-fix-2"></script>
 </body>
 </html>
