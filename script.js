@@ -418,3 +418,25 @@ document.getElementById('sendSupportBtn')?.addEventListener('click', () => {
 });
 
 initProfilePanels();
+document.addEventListener("DOMContentLoaded", () => {
+
+  document.querySelectorAll(".profile-toggle")
+    .forEach(btn => {
+
+      btn.addEventListener("click", () => {
+
+        const panel =
+        document.getElementById(
+          btn.dataset.profilePanel
+        );
+
+        if (!panel) return;
+
+        panel.classList.toggle("open");
+        btn.classList.toggle("active");
+
+      });
+
+    });
+
+});
