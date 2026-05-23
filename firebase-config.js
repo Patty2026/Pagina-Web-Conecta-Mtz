@@ -2,7 +2,7 @@
 // Proyecto: Conecta-Martinez
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDW-b7MyGn7O5lOfYeepigv2Yz6byotAVQ",,
+  apiKey: "AIzaSyDW-b7MyGn705IOfYeepigv2Yz6byotAVQ",,
   authDomain: "conecta-martinez.firebaseapp.com",
   projectId: "conecta-martinez",
   storageBucket: "conecta-martinez.firebasestorage.app",
