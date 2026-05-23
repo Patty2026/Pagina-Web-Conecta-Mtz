@@ -20,6 +20,8 @@ let mapMarker = null;
 let reportsMapInstance = null;
 let reportMarkersLayer = null;
 let cachedReports = [];
+let cachedUserReports = [];
+let selectedReport = null;
 
 const defaultLocation = { latitud: 20.0708, longitud: -97.0608 };
 
@@ -29,6 +31,7 @@ function showScreen(target) {
   window.scrollTo(0, 0);
   if (target === 'locationScreen') { initMap(); setTimeout(() => mapInstance?.invalidateSize(), 300); }
   if (target === 'mapScreen') { initReportsMap(); setTimeout(() => reportsMapInstance?.invalidateSize(), 300); loadReportsMap(); }
+  if (target === 'trackingScreen') renderTrackingScreen();
 }
 
 function setAuthMessage(message, type = 'info') {
@@ -50,6 +53,24 @@ function friendlyFirebaseError(error) {
   if (code.includes('auth/invalid-credential') || code.includes('auth/wrong-password') || code.includes('auth/user-not-found')) return 'Correo o contraseña incorrectos.';
   if (code.includes('permission-denied')) return 'Firestore bloqueó la operación. Revisa las reglas.';
   return `Error: ${code || message || 'No identificado'}`;
+}
+
+function getCategoryIcon(category = '') {
+  const lower = category.toLowerCase();
+  if (lower.includes('alumbrado')) return '💡';
+  if (lower.includes('bache')) return '🚧';
+  if (lower.includes('agua') || lower.includes('fuga')) return '💧';
+  if (lower.includes('basura')) return '🗑️';
+  if (lower.includes('verde')) return '🌳';
+  return '📌';
+}
+
+function normalizeStatus(status = 'Pendiente') {
+  const value = status.toLowerCase();
+  if (value.includes('proceso')) return 'En proceso';
+  if (value.includes('revision') || value.includes('revisión')) return 'En revisión';
+  if (value.includes('resuelto') || value.includes('cerrado')) return 'Resuelto';
+  return 'Pendiente';
 }
 
 function updateLocationUI(message) {
@@ -144,7 +165,7 @@ function drawReportsOnMap(reports = cachedReports) {
     const estado = report.estado || 'Pendiente';
     const descripcion = report.descripcion || 'Sin descripción';
     marker.bindPopup(`<b>${folio}</b><br>${getCategoryIcon(tipo)} ${tipo}<br><small>${estado}</small><br><small>${descripcion}</small>`);
-    marker.on('click', () => updateMapInfoCard(`${folio} · ${tipo}`, `${estado} · ${descripcion}`, getCategoryIcon(tipo)));
+    marker.on('click', () => { selectedReport = report; updateMapInfoCard(`${folio} · ${tipo}`, `${estado} · ${descripcion}`, getCategoryIcon(tipo)); });
   });
   reportsMapInstance.fitBounds(bounds, { padding: [32, 32], maxZoom: 16 });
   updateMapInfoCard(`${validReports.length} incidencia(s) en el mapa`, 'Toca un marcador para ver el detalle del reporte.', '📍');
@@ -175,26 +196,44 @@ async function loadUserReports() {
   reportsList.innerHTML = '<div class="report-card"><span class="icon cyan">⏳</span><div><b>Cargando reportes...</b><small>Consultando Firestore</small></div></div>';
   try {
     const reports = await obtenerIncidenciasPorUsuario(currentUser.uid);
+    cachedUserReports = reports;
     if (!reports.length) {
       reportsList.innerHTML = '<div class="report-card"><span class="icon green">ℹ️</span><div><b>Sin reportes todavía</b><small>Crea tu primera incidencia</small></div><span>›</span></div>';
       return;
     }
-    reportsList.innerHTML = reports.slice(0, 5).map(report => `<div class="report-card" data-go="trackingScreen"><span class="icon cyan">${getCategoryIcon(report.tipo)}</span><div><b>${report.folio || report.tipo || 'Incidencia'}</b><small>${report.estado || 'Pendiente'} · ${report.ubicacion || 'Sin ubicación'}</small></div><span>›</span></div>`).join('');
-    reportsList.querySelectorAll('[data-go]').forEach(card => card.addEventListener('click', () => showScreen(card.dataset.go)));
+    reportsList.innerHTML = reports.slice(0, 5).map((report, index) => `<div class="report-card user-report-card" data-report-index="${index}"><span class="icon cyan">${getCategoryIcon(report.tipo)}</span><div><b>${report.folio || report.tipo || 'Incidencia'}</b><small>${report.estado || 'Pendiente'} · ${report.descripcion || 'Sin descripción'}</small></div><span>›</span></div>`).join('');
+    reportsList.querySelectorAll('.user-report-card').forEach(card => card.addEventListener('click', () => { selectedReport = cachedUserReports[Number(card.dataset.reportIndex)] || null; showScreen('trackingScreen'); }));
   } catch (error) {
     console.error(error);
     reportsList.innerHTML = '<div class="report-card"><span class="icon orange">⚠️</span><div><b>No se pudieron cargar los reportes</b><small>Revisa conexión o reglas de Firestore</small></div></div>';
   }
 }
 
-function getCategoryIcon(category = '') {
-  const lower = category.toLowerCase();
-  if (lower.includes('alumbrado')) return '💡';
-  if (lower.includes('bache')) return '🚧';
-  if (lower.includes('agua') || lower.includes('fuga')) return '💧';
-  if (lower.includes('basura')) return '🗑️';
-  if (lower.includes('verde')) return '🌳';
-  return '📌';
+function renderTrackingScreen() {
+  const report = selectedReport || cachedUserReports[0] || null;
+  const statusBanner = document.querySelector('#trackingScreen .status-banner');
+  const title = document.querySelector('#trackingScreen h3');
+  const timeline = document.querySelector('#trackingScreen .timeline');
+  if (!report) {
+    if (statusBanner) statusBanner.innerHTML = 'Sin reporte seleccionado<br><small>Vuelve a Mis reportes y selecciona una incidencia.</small>';
+    if (title) title.innerHTML = 'Sin folio<br><span>No hay datos disponibles</span>';
+    if (timeline) timeline.innerHTML = '<p>⚠️ No se encontró información del reporte.</p>';
+    return;
+  }
+  const status = normalizeStatus(report.estado);
+  const folio = report.folio || `#${report.id?.slice(0, 8) || 'INC'}`;
+  const type = report.tipo || 'Incidencia ciudadana';
+  const description = report.descripcion || 'Sin descripción';
+  const location = report.ubicacion || 'Ubicación no registrada';
+  const steps = ['Pendiente', 'En revisión', 'En proceso', 'Resuelto'];
+  const activeIndex = Math.max(0, steps.indexOf(status));
+  if (statusBanner) statusBanner.innerHTML = `${status}<br><small>${description}</small>`;
+  if (title) title.innerHTML = `${folio}<br><span>${type}</span><small style="display:block;color:#6d7191;margin-top:10px;font-size:.9rem;line-height:1.5">${location}</small>`;
+  if (timeline) timeline.innerHTML = steps.map((step, index) => {
+    const icon = index < activeIndex ? '✅' : index === activeIndex ? (step === 'Resuelto' ? '✅' : '🟠') : '⚪';
+    const label = step === 'Pendiente' ? 'Reporte recibido' : step;
+    return `<p>${icon} ${label}</p>`;
+  }).join('');
 }
 
 function updateSummary() {
@@ -232,4 +271,4 @@ function resetTransition() { slides.forEach(slide => { slide.style.transition = 
 if (carousel && slides.length) { updateCarousel(0); startAutoSlide(); carousel.addEventListener('touchstart', e => { stopAutoSlide(); isDragging = true; startX = e.touches[0].clientX; currentX = startX; }, { passive: true }); carousel.addEventListener('touchmove', e => { if (!isDragging) return; currentX = e.touches[0].clientX; dragTo(currentX - startX); }, { passive: true }); carousel.addEventListener('touchend', () => { if (!isDragging) return; isDragging = false; resetTransition(); const d = currentX - startX; Math.abs(d) > 55 ? (d < 0 ? updateCarousel(currentSlide + 1) : previousSlide()) : updateCarousel(currentSlide); startAutoSlide(); }); dots.forEach((dot, index) => dot.addEventListener('click', () => { stopAutoSlide(); updateCarousel(index); startAutoSlide(); })); nextSlideBtn?.addEventListener('click', () => { stopAutoSlide(); nextSlide(); startAutoSlide(); }); }
 
 document.querySelectorAll('[data-category]').forEach(button => button.addEventListener('click', () => { selectedCategoryValue = button.dataset.category || selectedCategoryValue; const selected = document.getElementById('selectedCategory'); if (selected) selected.textContent = selectedCategoryValue; }));
-document.addEventListener('click', event => { const target = event.target.closest('[data-go]'); if (!target) return; const screenId = target.dataset.go; if (!screenId) return; document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active')); document.getElementById(screenId)?.classList.add('active'); window.scrollTo(0, 0); if (screenId === 'locationScreen') { initMap(); setTimeout(() => mapInstance?.invalidateSize(), 300); } if (screenId === 'mapScreen') { initReportsMap(); setTimeout(() => reportsMapInstance?.invalidateSize(), 300); loadReportsMap(); } });
+document.addEventListener('click', event => { const target = event.target.closest('[data-go]'); if (!target) return; const screenId = target.dataset.go; if (!screenId) return; document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active')); document.getElementById(screenId)?.classList.add('active'); window.scrollTo(0, 0); if (screenId === 'locationScreen') { initMap(); setTimeout(() => mapInstance?.invalidateSize(), 300); } if (screenId === 'mapScreen') { initReportsMap(); setTimeout(() => reportsMapInstance?.invalidateSize(), 300); loadReportsMap(); } if (screenId === 'trackingScreen') renderTrackingScreen(); });
