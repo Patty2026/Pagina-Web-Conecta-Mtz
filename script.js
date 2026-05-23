@@ -272,3 +272,149 @@ if (carousel && slides.length) { updateCarousel(0); startAutoSlide(); carousel.a
 
 document.querySelectorAll('[data-category]').forEach(button => button.addEventListener('click', () => { selectedCategoryValue = button.dataset.category || selectedCategoryValue; const selected = document.getElementById('selectedCategory'); if (selected) selected.textContent = selectedCategoryValue; }));
 document.addEventListener('click', event => { const target = event.target.closest('[data-go]'); if (!target) return; const screenId = target.dataset.go; if (!screenId) return; document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active')); document.getElementById(screenId)?.classList.add('active'); window.scrollTo(0, 0); if (screenId === 'locationScreen') { initMap(); setTimeout(() => mapInstance?.invalidateSize(), 300); } if (screenId === 'mapScreen') { initReportsMap(); setTimeout(() => reportsMapInstance?.invalidateSize(), 300); loadReportsMap(); } if (screenId === 'trackingScreen') renderTrackingScreen(); });
+function initProfilePanels() {
+  document.querySelectorAll('.profile-toggle').forEach(button => {
+    button.addEventListener('click', () => {
+      const panelId = button.dataset.profilePanel;
+      const panel = document.getElementById(panelId);
+
+      document.querySelectorAll('.profile-toggle').forEach(btn => {
+        if (btn !== button) btn.classList.remove('active');
+      });
+
+      document.querySelectorAll('.profile-panel').forEach(item => {
+        if (item !== panel) item.classList.remove('open');
+      });
+
+      button.classList.toggle('active');
+      panel?.classList.toggle('open');
+
+      if (panelId === 'panelReports') renderProfileReports();
+      if (panelId === 'panelData') fillProfileDataForm();
+    });
+  });
+}
+
+function renderProfileReports() {
+  const container = document.getElementById('profileReportsList');
+  if (!container) return;
+
+  if (!cachedUserReports.length) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <b>No hay reportes disponibles</b>
+        <small>Crea una incidencia para verla aquí.</small>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = cachedUserReports.map((report, index) => `
+    <div class="profile-report-item">
+      <span class="icon cyan">${getCategoryIcon(report.tipo)}</span>
+      <div>
+        <b>${report.folio || report.tipo || 'Incidencia'}</b>
+        <small>${report.estado || 'Pendiente'} · ${report.descripcion || 'Sin descripción'}</small>
+      </div>
+      <span class="mini-status">${report.estado || 'Pendiente'}</span>
+
+      <div class="profile-actions">
+        <button type="button" data-view-report="${index}">Ver</button>
+        <button type="button" data-edit-report="${index}">Editar</button>
+        <button type="button" class="danger" data-delete-report="${index}">Eliminar</button>
+      </div>
+    </div>
+  `).join('');
+
+  container.querySelectorAll('[data-view-report]').forEach(button => {
+    button.addEventListener('click', () => {
+      selectedReport = cachedUserReports[Number(button.dataset.viewReport)];
+      showScreen('trackingScreen');
+    });
+  });
+
+  container.querySelectorAll('[data-edit-report]').forEach(button => {
+    button.addEventListener('click', () => {
+      const report = cachedUserReports[Number(button.dataset.editReport)];
+      const nuevaDescripcion = prompt('Modificar descripción del reporte:', report.descripcion || '');
+
+      if (nuevaDescripcion !== null) {
+        report.descripcion = nuevaDescripcion.trim() || report.descripcion;
+        renderProfileReports();
+        alert('Cambio visual aplicado. La conexión final a Firestore se agregará después.');
+      }
+    });
+  });
+
+  container.querySelectorAll('[data-delete-report]').forEach(button => {
+    button.addEventListener('click', () => {
+      const index = Number(button.dataset.deleteReport);
+      const confirmDelete = confirm('¿Deseas eliminar este reporte de la vista?');
+
+      if (confirmDelete) {
+        cachedUserReports.splice(index, 1);
+        renderProfileReports();
+        alert('Eliminado de la vista. La eliminación real en Firestore se agregará después.');
+      }
+    });
+  });
+}
+
+function fillProfileDataForm() {
+  const emailInput = document.getElementById('profileEmailInput');
+  const nameInput = document.getElementById('profileNameInput');
+  const roleInput = document.getElementById('profileRoleInput');
+
+  if (emailInput && currentUser) emailInput.value = currentUser.email || '';
+  if (nameInput && currentUser) nameInput.value = currentUser.email?.split('@')[0] || '';
+  if (roleInput) roleInput.value = document.getElementById('roleSelect')?.value || 'Ciudadano';
+}
+
+document.getElementById('profileDataForm')?.addEventListener('submit', event => {
+  event.preventDefault();
+
+  const message = document.getElementById('profileDataMessage');
+  const name = document.getElementById('profileNameInput')?.value || 'Usuario';
+  const role = document.getElementById('profileRoleInput')?.value || 'Ciudadano';
+
+  document.getElementById('profileName').textContent = name;
+  document.getElementById('profileRole').textContent = `${role} activo`;
+
+  localStorage.setItem('conectaPerfil', JSON.stringify({
+    nombre: name,
+    telefono: document.getElementById('profilePhoneInput')?.value || '',
+    rol: role
+  }));
+
+  if (message) message.textContent = 'Datos guardados correctamente.';
+});
+
+document.getElementById('saveSettingsBtn')?.addEventListener('click', () => {
+  const settings = {
+    notificaciones: document.getElementById('notifyReports')?.checked || false,
+    ubicacion: document.getElementById('allowLocationSetting')?.checked || false,
+    vistaCompacta: document.getElementById('compactModeSetting')?.checked || false
+  };
+
+  localStorage.setItem('conectaConfiguracion', JSON.stringify(settings));
+
+  const message = document.getElementById('settingsMessage');
+  if (message) message.textContent = 'Configuración guardada.';
+});
+
+document.getElementById('sendSupportBtn')?.addEventListener('click', () => {
+  const textarea = document.getElementById('supportMessage');
+  const result = document.getElementById('supportMessageResult');
+
+  if (!textarea?.value.trim()) {
+    if (result) result.textContent = 'Escribe un mensaje antes de enviar.';
+    return;
+  }
+
+  localStorage.setItem('conectaUltimoSoporte', textarea.value.trim());
+  textarea.value = '';
+
+  if (result) result.textContent = 'Mensaje enviado correctamente.';
+});
+
+initProfilePanels();
