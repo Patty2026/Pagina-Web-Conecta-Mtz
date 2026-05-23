@@ -230,3 +230,17 @@ if (carousel && slides.length) {
 }
 
 document.querySelectorAll('[data-category]').forEach(button => button.addEventListener('click', () => { selectedCategoryValue = button.dataset.category || selectedCategoryValue; const selected = document.getElementById('selectedCategory'); if (selected) selected.textContent = selectedCategoryValue; }));
+document.addEventListener('click', event => {
+  const target = event.target.closest('[data-go]');
+  if (!target) return;
+
+  const screenId = target.dataset.go;
+  if (!screenId) return;
+
+  document.querySelectorAll('.screen').forEach(screen => {
+    screen.classList.remove('active');
+  });
+
+  document.getElementById(screenId)?.classList.add('active');
+  window.scrollTo(0, 0);
+});
