@@ -14,8 +14,12 @@
   <main class="mobile-app">
     <section class="screen active splash" id="splashScreen">
       <div class="logo-mark"></div>
-      <div class="mini-map">📍<small id="locationText">Toca siguiente para capturar tu ubicación GPS.</small></div>
-      <small>Aplicación móvil para reportar, dar seguimiento y resolver incidencias en nuestra comunidad.</small>
+  <div id="realMap" class="real-map"></div>
+
+  <div class="location-card">
+  <b>Ubicación seleccionada</b>
+  <small id="locationText">Toca “Usar mi ubicación actual” o mueve el marcador en el mapa.</small>
+  </div>      <small>Aplicación móvil para reportar, dar seguimiento y resolver incidencias en nuestra comunidad.</small>
       <button class="main-btn" data-go="onboardingScreen">Comenzar</button>
     </section>
     <section class="screen onboarding" id="onboardingScreen"><button class="skip" data-go="loginScreen">Omitir</button><div class="incident-carousel" id="incidentCarousel"><article class="incident-slide active" data-title="Tu comunidad,<br>tu <span>voz</span>,<br>tu cambio." data-text="Reporta incidencias, da seguimiento y ayuda a mejorar Martínez de la Torre."><div class="slide-art alumbrado"><span>💡</span><i></i><b></b></div><strong>Alumbrado público</strong><small>Reporta luminarias apagadas o zonas oscuras.</small></article><article class="incident-slide" data-title="Reporta <span>baches</span><br>en tu colonia." data-text="Ubica el punto exacto, agrega evidencia y consulta el avance del reporte."><div class="slide-art baches"><span>🚧</span><i></i><b></b></div><strong>Baches y vialidades</strong><small>Ayuda a mejorar calles y accesos de la comunidad.</small></article><article class="incident-slide" data-title="Detecta <span>fugas</span><br>y avisa a tiempo." data-text="Adjunta una imagen y permite que apoyo comunitario atienda la incidencia."><div class="slide-art agua"><span>💧</span><i></i><b></b></div><strong>Fugas de agua</strong><small>Reporta escurrimientos, tuberías dañadas o desperdicio.</small></article><article class="incident-slide" data-title="Mantengamos limpia<br>la <span>comunidad</span>." data-text="Informa sobre acumulación de basura, áreas descuidadas o puntos de riesgo."><div class="slide-art basura"><span>🗑️</span><i></i><b></b></div><strong>Basura y áreas verdes</strong><small>Conecta tu reporte con la institución responsable.</small></article></div><h2 id="onboardingTitle">Tu comunidad,<br>tu <span>voz</span>,<br>tu cambio.</h2><p id="onboardingText">Reporta incidencias, da seguimiento y ayuda a mejorar Martínez de la Torre.</p><div class="dots" id="onboardingDots"><span class="active"></span><span></span><span></span><span></span></div><button class="circle-btn" id="nextSlideBtn" type="button">➜</button></section>
