@@ -65,6 +65,39 @@ function showScreen(target) {
 }
 
 /* ===============================
+   MODAL INICIAL ACERCA DE LA APP
+================================ */
+
+function initSplashInfoModal() {
+  const openBtn = document.getElementById('openSplashInfo');
+  const closeBtn = document.getElementById('closeSplashInfo');
+  const overlay = document.getElementById('splashInfoOverlay');
+
+  if (!openBtn || !closeBtn || !overlay) return;
+
+  const openModal = () => {
+    overlay.classList.add('open');
+    overlay.setAttribute('aria-hidden', 'false');
+  };
+
+  const closeModal = () => {
+    overlay.classList.remove('open');
+    overlay.setAttribute('aria-hidden', 'true');
+  };
+
+  openBtn.addEventListener('click', openModal);
+  closeBtn.addEventListener('click', closeModal);
+
+  overlay.addEventListener('click', event => {
+    if (event.target === overlay) closeModal();
+  });
+
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') closeModal();
+  });
+}
+
+/* ===============================
    MENSAJES Y ERRORES
 ================================ */
 
@@ -172,9 +205,7 @@ function setSelectedLocation(lat, lng, message = 'Ubicación seleccionada en el 
     mapInstance.setView([lat, lng], 16);
   }
 
-  locationLabel = `${message}
-Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}${accuracy ? `
-Precisión: ${accuracy} m` : ''}`;
+  locationLabel = `${message}\nLat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}${accuracy ? `\nPrecisión: ${accuracy} m` : ''}`;
 
   updateLocationUI(locationLabel);
   updateSummary();
@@ -440,850 +471,549 @@ async function loadReportsMap() {
   }
 }
 
-document
-  .getElementById('mapSearchInput')
-  ?.addEventListener('input', event => {
-    const term = event.target.value.trim().toLowerCase();
-
-    const filtered = !term
-      ? cachedReports
-      : cachedReports.filter(report =>
-          `${report.folio || ''} ${report.tipo || ''} ${report.descripcion || ''} ${report.ubicacion || ''} ${report.estado || ''}`
-            .toLowerCase()
-            .includes(term)
-        );
-
-    drawReportsOnMap(filtered);
-
-    if (term && !filtered.length) {
-      updateMapInfoCard(
-        'Sin resultados',
-        `No se encontraron reportes con “${term}”.`,
-        '🔎'
-      );
-    }
-  });
-
 /* ===============================
-   MIS REPORTES
+   RESUMEN DEL REPORTE
 ================================ */
 
-async function loadUserReports() {
-  const reportsList = document.getElementById('reportsList');
+function updateSummary() {
+  const category = document.getElementById('selectedCategory');
+  const desc = document.getElementById('summaryDesc');
+  const evidence = document.getElementById('summaryEvidence');
 
-  if (!reportsList || !currentUser) return;
+  if (category) category.textContent = selectedCategoryValue;
 
-  reportsList.innerHTML = `
-    <div class="report-card">
-      <span class="icon cyan">⏳</span>
+  const description = document.getElementById('desc')?.value?.trim();
+  if (desc) desc.textContent = description || 'Completa la descripción del problema.';
+
+  if (evidence) evidence.textContent = selectedEvidenceName;
+}
+
+/* ===============================
+   REPORTES EN INICIO Y PERFIL
+================================ */
+
+function renderReportCard(report) {
+  const status = normalizeStatus(report.estado || 'Pendiente');
+  const folio = report.folio || `#${report.id?.slice(0, 8) || 'INC'}`;
+  const tipo = report.tipo || 'Reporte ciudadano';
+  const desc = report.descripcion || 'Sin descripción';
+
+  return `
+    <div class="report-card" data-report-id="${report.id}">
+      <span class="icon cyan">${getCategoryIcon(tipo)}</span>
       <div>
-        <b>Cargando reportes...</b>
-        <small>Consultando Firestore</small>
+        <b>${folio} · ${tipo}</b>
+        <small>${status} · ${desc}</small>
       </div>
+      <span>›</span>
+    </div>
+  `;
+}
+
+function attachReportCardEvents(container) {
+  container.querySelectorAll('[data-report-id]').forEach(card => {
+    card.addEventListener('click', () => {
+      const id = card.dataset.reportId;
+      selectedReport = cachedReports.find(report => report.id === id) ||
+        cachedUserReports.find(report => report.id === id) ||
+        null;
+
+      showScreen('trackingScreen');
+    });
+  });
+}
+
+async function loadUserReports() {
+  const list = document.getElementById('reportsList');
+  if (!list || !currentUser) return;
+
+  list.innerHTML = `
+    <div class="report-card">
+      <span class="icon orange">⏳</span>
+      <div><b>Cargando reportes...</b><small>Consultando Firestore</small></div>
+      <span>·</span>
     </div>
   `;
 
   try {
-    const reports = await obtenerIncidenciasPorUsuario(currentUser.uid);
+    cachedUserReports = await obtenerIncidenciasPorUsuario(currentUser.uid);
+    cachedReports = cachedUserReports;
 
-    cachedUserReports = reports;
-    renderProfileReports();
-
-    if (!reports.length) {
-      reportsList.innerHTML = `
+    if (!cachedUserReports.length) {
+      list.innerHTML = `
         <div class="report-card">
           <span class="icon green">ℹ️</span>
-          <div>
-            <b>Sin reportes todavía</b>
-            <small>Crea tu primera incidencia</small>
-          </div>
+          <div><b>Sin reportes todavía</b><small>Crea tu primera incidencia</small></div>
           <span>›</span>
         </div>
       `;
       return;
     }
 
-    reportsList.innerHTML = reports.slice(0, 5).map((report, index) => `
-      <div class="report-card user-report-card" data-report-index="${index}">
-        <span class="icon cyan">${getCategoryIcon(report.tipo)}</span>
-        <div>
-          <b>${report.folio || report.tipo || 'Incidencia'}</b>
-          <small>${report.estado || 'Pendiente'} · ${report.descripcion || 'Sin descripción'}</small>
-        </div>
-        <span>›</span>
-      </div>
-    `).join('');
-
-    reportsList.querySelectorAll('.user-report-card').forEach(card => {
-      card.addEventListener('click', () => {
-        selectedReport =
-          cachedUserReports[Number(card.dataset.reportIndex)] || null;
-
-        showScreen('trackingScreen');
-      });
-    });
+    list.innerHTML = cachedUserReports.slice(0, 3).map(renderReportCard).join('');
+    attachReportCardEvents(list);
   } catch (error) {
     console.error(error);
 
-    reportsList.innerHTML = `
+    list.innerHTML = `
       <div class="report-card">
         <span class="icon orange">⚠️</span>
-        <div>
-          <b>No se pudieron cargar los reportes</b>
-          <small>Revisa conexión o reglas de Firestore</small>
-        </div>
+        <div><b>No se pudieron cargar los reportes</b><small>Revisa conexión o reglas de Firestore</small></div>
+        <span>·</span>
       </div>
     `;
   }
 }
 
-/* ===============================
-   DETALLE DE REPORTE
-================================ */
-
 function renderTrackingScreen() {
-  const report = selectedReport || cachedUserReports[0] || null;
-
-  const statusBanner = document.querySelector('#trackingScreen .status-banner');
   const title = document.querySelector('#trackingScreen h3');
+  const banner = document.querySelector('#trackingScreen .status-banner');
   const timeline = document.querySelector('#trackingScreen .timeline');
 
-  if (!report) {
-    if (statusBanner) {
-      statusBanner.innerHTML =
-        'Sin reporte seleccionado<br><small>Vuelve a Mis reportes y selecciona una incidencia.</small>';
-    }
+  const report = selectedReport || cachedUserReports[0];
 
-    if (title) {
-      title.innerHTML =
-        'Sin folio<br><span>No hay datos disponibles</span>';
-    }
+  if (!report) return;
 
-    if (timeline) {
-      timeline.innerHTML =
-        '<p>⚠️ No se encontró información del reporte.</p>';
-    }
-
-    return;
-  }
-
-  const status = normalizeStatus(report.estado);
+  const status = normalizeStatus(report.estado || 'Pendiente');
+  const tipo = report.tipo || 'Reporte ciudadano';
   const folio = report.folio || `#${report.id?.slice(0, 8) || 'INC'}`;
-  const type = report.tipo || 'Incidencia ciudadana';
-  const description = report.descripcion || 'Sin descripción';
-  const location = report.ubicacion || 'Ubicación no registrada';
+  const desc = report.descripcion || 'Sin descripción';
 
-  const steps = ['Pendiente', 'En revisión', 'En proceso', 'Resuelto'];
-  const activeIndex = Math.max(0, steps.indexOf(status));
-
-  if (statusBanner) {
-    statusBanner.innerHTML = `
-      ${status}<br>
-      <small>${description}</small>
-    `;
+  if (banner) {
+    banner.innerHTML = `${status}<br><small>${status === 'Resuelto' ? 'Tu reporte fue marcado como resuelto' : 'Tu reporte está siendo atendido'}</small>`;
   }
 
   if (title) {
-    title.innerHTML = `
-      ${folio}<br>
-      <span>${type}</span>
-      <small style="display:block;color:#6d7191;margin-top:10px;font-size:.9rem;line-height:1.5">
-        ${location}
-      </small>
-    `;
+    title.innerHTML = `${folio}<br><span>${tipo}</span><br><small>${desc}</small>`;
   }
 
   if (timeline) {
+    const steps = ['Pendiente', 'En revisión', 'En proceso', 'Resuelto'];
+    const currentIndex = steps.indexOf(status);
+
     timeline.innerHTML = steps.map((step, index) => {
-      const icon =
-        index < activeIndex
-          ? '✅'
-          : index === activeIndex
-            ? (step === 'Resuelto' ? '✅' : '🟠')
-            : '⚪';
-
-      const label = step === 'Pendiente' ? 'Reporte recibido' : step;
-
-      return `<p>${icon} ${label}</p>`;
+      const icon = index <= currentIndex ? '✅' : '⚪';
+      return `<p>${icon} ${step}</p>`;
     }).join('');
   }
 }
 
 /* ===============================
-   RESUMEN DE REPORTE
-================================ */
-
-function updateSummary() {
-  const desc =
-    document.getElementById('desc')?.value?.trim() ||
-    'Completa la descripción del problema.';
-
-  const summaryDesc = document.getElementById('summaryDesc');
-  const summaryEvidence = document.getElementById('summaryEvidence');
-  const selectedCategory = document.getElementById('selectedCategory');
-  const summaryLocation = document.getElementById('summaryLocation');
-
-  if (summaryDesc) summaryDesc.textContent = desc;
-  if (summaryEvidence) summaryEvidence.textContent = selectedEvidenceName;
-  if (selectedCategory) selectedCategory.textContent = selectedCategoryValue;
-
-  if (summaryLocation) {
-    summaryLocation.textContent = locationLabel.replaceAll('\n', ' · ');
-  }
-}
-
-/* ===============================
-   PERFIL: PANELES DESPLEGABLES
+   PERFIL DESPLEGABLE
 ================================ */
 
 function initProfilePanels() {
   document.querySelectorAll('.profile-toggle').forEach(button => {
-    button.addEventListener('click', event => {
-      event.preventDefault();
-      event.stopPropagation();
-
+    button.addEventListener('click', () => {
       const panelId = button.dataset.profilePanel;
       const panel = document.getElementById(panelId);
 
       if (!panel) return;
 
-      document.querySelectorAll('.profile-toggle').forEach(btn => {
-        if (btn !== button) btn.classList.remove('active');
-      });
+      const isOpen = panel.classList.contains('open');
 
-      document.querySelectorAll('.profile-panel').forEach(item => {
-        if (item !== panel) item.classList.remove('open');
-      });
+      document.querySelectorAll('.profile-panel').forEach(item => item.classList.remove('open'));
+      document.querySelectorAll('.profile-toggle').forEach(item => item.classList.remove('active'));
 
-      button.classList.toggle('active');
-      panel.classList.toggle('open');
-
-      if (panelId === 'panelReports') {
-        renderProfileReports();
+      if (!isOpen) {
+        panel.classList.add('open');
+        button.classList.add('active');
       }
 
-      if (panelId === 'panelData') {
-        fillProfileDataForm();
-      }
-    });
-  });
-}
-
-function renderProfileReports() {
-  const container = document.getElementById('profileReportsList');
-
-  if (!container) return;
-
-  if (!cachedUserReports.length) {
-    container.innerHTML = `
-      <div class="empty-state">
-        <b>No hay reportes disponibles</b>
-        <small>Crea una incidencia para verla aquí.</small>
-      </div>
-    `;
-    return;
-  }
-
-  container.innerHTML = cachedUserReports.map((report, index) => `
-    <div class="profile-report-item">
-      <span class="icon cyan">${getCategoryIcon(report.tipo)}</span>
-
-      <div>
-        <b>${report.folio || report.tipo || 'Incidencia'}</b>
-        <small>${report.estado || 'Pendiente'} · ${report.descripcion || 'Sin descripción'}</small>
-      </div>
-
-      <span class="mini-status">${report.estado || 'Pendiente'}</span>
-
-      <div class="profile-actions">
-        <button type="button" data-view-report="${index}">Ver</button>
-        <button type="button" data-edit-report="${index}">Editar</button>
-        <button type="button" class="danger" data-delete-report="${index}">Eliminar</button>
-      </div>
-    </div>
-  `).join('');
-
-  container.querySelectorAll('[data-view-report]').forEach(button => {
-    button.addEventListener('click', () => {
-      selectedReport = cachedUserReports[Number(button.dataset.viewReport)];
-      showScreen('trackingScreen');
-    });
-  });
-
-  container.querySelectorAll('[data-edit-report]').forEach(button => {
-    button.addEventListener('click', () => {
-      const report =
-        cachedUserReports[Number(button.dataset.editReport)];
-
-      const nuevaDescripcion = prompt(
-        'Modificar descripción del reporte:',
-        report.descripcion || ''
-      );
-
-      if (nuevaDescripcion !== null) {
-        report.descripcion =
-          nuevaDescripcion.trim() || report.descripcion;
-
-        renderProfileReports();
-
-        alert('Cambio aplicado en pantalla.');
-      }
-    });
-  });
-
-  container.querySelectorAll('[data-delete-report]').forEach(button => {
-    button.addEventListener('click', () => {
-      const index = Number(button.dataset.deleteReport);
-
-      const confirmDelete = confirm(
-        '¿Deseas eliminar este reporte de la vista?'
-      );
-
-      if (confirmDelete) {
-        cachedUserReports.splice(index, 1);
-        renderProfileReports();
-        alert('Reporte eliminado de la vista.');
-      }
+      if (panelId === 'panelReports') renderProfileReports();
     });
   });
 }
 
 function fillProfileDataForm() {
-  const saved = JSON.parse(
-    localStorage.getItem('conectaPerfil') || '{}'
-  );
+  const storedProfile = JSON.parse(localStorage.getItem('conectaPerfil') || '{}');
+  const email = currentUser?.email || storedProfile.correo || '';
+  const name = storedProfile.nombre || email.split('@')[0] || 'Usuario';
+  const phone = storedProfile.telefono || '';
+  const role = storedProfile.rol || document.getElementById('roleSelect')?.value || 'Ciudadano';
 
-  const emailInput = document.getElementById('profileEmailInput');
+  const profileName = document.getElementById('profileName');
+  const profileRole = document.getElementById('profileRole');
+  const avatar = document.querySelector('.avatar');
+
+  if (profileName) profileName.textContent = name;
+  if (profileRole) profileRole.textContent = `${role} activo`;
+  if (avatar) avatar.textContent = name.charAt(0).toUpperCase();
+
   const nameInput = document.getElementById('profileNameInput');
+  const emailInput = document.getElementById('profileEmailInput');
   const phoneInput = document.getElementById('profilePhoneInput');
   const roleInput = document.getElementById('profileRoleInput');
 
-  if (emailInput && currentUser) {
-    emailInput.value = currentUser.email || '';
+  if (nameInput) nameInput.value = name;
+  if (emailInput) emailInput.value = email;
+  if (phoneInput) phoneInput.value = phone;
+  if (roleInput) roleInput.value = role;
+}
+
+function renderProfileReports() {
+  const container = document.getElementById('profileReportsList');
+  if (!container) return;
+
+  const reports = cachedUserReports.length ? cachedUserReports : cachedReports;
+
+  if (!reports.length) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <b>No hay reportes disponibles</b>
+        <small>Cuando registres una incidencia aparecerá aquí.</small>
+      </div>
+    `;
+    return;
   }
 
-  if (nameInput) {
-    nameInput.value =
-      saved.nombre ||
-      currentUser?.email?.split('@')[0] ||
-      '';
-  }
+  container.innerHTML = reports.map(report => {
+    const status = normalizeStatus(report.estado || 'Pendiente');
+    const folio = report.folio || `#${report.id?.slice(0, 8) || 'INC'}`;
+    const tipo = report.tipo || 'Reporte ciudadano';
+    const desc = report.descripcion || 'Sin descripción';
 
-  if (phoneInput) {
-    phoneInput.value = saved.telefono || '';
-  }
+    return `
+      <div class="profile-report-item" data-profile-report="${report.id}">
+        <span>${getCategoryIcon(tipo)}</span>
+        <div>
+          <b>${folio}</b>
+          <small>${tipo}</small>
+          <small>${desc}</small>
+        </div>
+        <span class="mini-status">${status}</span>
+        <div class="profile-actions">
+          <button type="button" data-profile-view="${report.id}">Ver</button>
+          <button type="button" data-profile-map="${report.id}">Mapa</button>
+          <button type="button" data-profile-delete="${report.id}" class="danger">Eliminar</button>
+        </div>
+      </div>
+    `;
+  }).join('');
 
-  if (roleInput) {
-    roleInput.value =
-      saved.rol ||
-      document.getElementById('roleSelect')?.value ||
-      'Ciudadano';
+  container.querySelectorAll('[data-profile-view]').forEach(button => {
+    button.addEventListener('click', () => {
+      const id = button.dataset.profileView;
+      selectedReport = reports.find(report => report.id === id);
+      showScreen('trackingScreen');
+    });
+  });
+
+  container.querySelectorAll('[data-profile-map]').forEach(button => {
+    button.addEventListener('click', () => {
+      const id = button.dataset.profileMap;
+      selectedReport = reports.find(report => report.id === id);
+      showScreen('mapScreen');
+    });
+  });
+
+  container.querySelectorAll('[data-profile-delete]').forEach(button => {
+    button.addEventListener('click', () => {
+      alert('Función demo: para eliminar reportes se requiere habilitar deleteDoc en Firebase.');
+    });
+  });
+}
+
+/* ===============================
+   ONBOARDING
+================================ */
+
+const slides = document.querySelectorAll('.incident-slide');
+const dots = document.querySelectorAll('#onboardingDots span');
+const title = document.getElementById('onboardingTitle');
+const text = document.getElementById('onboardingText');
+const nextSlideBtn = document.getElementById('nextSlideBtn');
+const carousel = document.getElementById('incidentCarousel');
+let currentSlide = 0;
+let startX = 0;
+
+function renderSlide(index) {
+  slides.forEach((slide, i) => {
+    slide.classList.toggle('active', i === index);
+    slide.style.transform = `translateX(${(i - index) * 100}%)`;
+  });
+
+  dots.forEach((dot, i) => dot.classList.toggle('active', i === index));
+
+  if (title && text && slides[index]) {
+    title.innerHTML = slides[index].dataset.title;
+    text.textContent = slides[index].dataset.text;
   }
 }
 
-document
-  .getElementById('profileDataForm')
-  ?.addEventListener('submit', event => {
-    event.preventDefault();
+function nextSlide() {
+  currentSlide += 1;
 
-    const message = document.getElementById('profileDataMessage');
+  if (currentSlide >= slides.length) {
+    showScreen('loginScreen');
+    return;
+  }
 
-    const name =
-      document.getElementById('profileNameInput')?.value ||
-      'Usuario';
+  renderSlide(currentSlide);
+}
 
-    const phone =
-      document.getElementById('profilePhoneInput')?.value ||
-      '';
+nextSlideBtn?.addEventListener('click', nextSlide);
 
-    const role =
-      document.getElementById('profileRoleInput')?.value ||
-      'Ciudadano';
-
-    const profileName = document.getElementById('profileName');
-    const profileRole = document.getElementById('profileRole');
-
-    if (profileName) profileName.textContent = name;
-    if (profileRole) profileRole.textContent = `${role} activo`;
-
-    localStorage.setItem(
-      'conectaPerfil',
-      JSON.stringify({
-        nombre: name,
-        telefono: phone,
-        rol: role
-      })
-    );
-
-    if (message) {
-      message.textContent = 'Datos guardados correctamente.';
-    }
-  });
-
-document
-  .getElementById('saveSettingsBtn')
-  ?.addEventListener('click', () => {
-    const settings = {
-      notificaciones:
-        document.getElementById('notifyReports')?.checked || false,
-      ubicacion:
-        document.getElementById('allowLocationSetting')?.checked || false,
-      vistaCompacta:
-        document.getElementById('compactModeSetting')?.checked || false
-    };
-
-    localStorage.setItem(
-      'conectaConfiguracion',
-      JSON.stringify(settings)
-    );
-
-    const message = document.getElementById('settingsMessage');
-
-    if (message) {
-      message.textContent = 'Configuración guardada.';
-    }
-  });
-
-document
-  .getElementById('sendSupportBtn')
-  ?.addEventListener('click', () => {
-    const textarea = document.getElementById('supportMessage');
-    const result = document.getElementById('supportMessageResult');
-
-    if (!textarea?.value.trim()) {
-      if (result) {
-        result.textContent = 'Escribe un mensaje antes de enviar.';
-      }
-
-      return;
-    }
-
-    localStorage.setItem(
-      'conectaUltimoSoporte',
-      textarea.value.trim()
-    );
-
-    textarea.value = '';
-
-    if (result) {
-      result.textContent = 'Mensaje enviado correctamente.';
-    }
-  });
-
-/* ===============================
-   FORMULARIOS Y BOTONES
-================================ */
-
-document.querySelectorAll('[data-go]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    if (btn.dataset.go === 'confirmScreen') {
-      updateSummary();
-    }
-
-    showScreen(btn.dataset.go);
+dots.forEach((dot, index) => {
+  dot.addEventListener('click', () => {
+    currentSlide = index;
+    renderSlide(currentSlide);
   });
 });
 
-document
-  .getElementById('loginForm')
-  ?.addEventListener('submit', async event => {
-    event.preventDefault();
+carousel?.addEventListener('touchstart', event => {
+  startX = event.touches[0].clientX;
+});
 
-    const email = document
-      .getElementById('loginEmail')
-      ?.value
-      ?.trim();
+carousel?.addEventListener('touchend', event => {
+  const endX = event.changedTouches[0].clientX;
 
-    const password =
-      document.getElementById('loginPassword')?.value;
+  if (startX - endX > 45) nextSlide();
+  if (endX - startX > 45 && currentSlide > 0) {
+    currentSlide -= 1;
+    renderSlide(currentSlide);
+  }
+});
 
-    if (!email || !password) {
-      return setAuthMessage(
-        'Escribe correo y contraseña.',
-        'error'
-      );
-    }
+renderSlide(currentSlide);
 
-    setAuthMessage('Iniciando sesión...', 'info');
+/* ===============================
+   EVENTOS DE NAVEGACIÓN
+================================ */
 
-    try {
-      await iniciarSesion(email, password);
+document.addEventListener('click', event => {
+  const button = event.target.closest('[data-go]');
 
-      setAuthMessage(
-        'Sesión iniciada correctamente.',
-        'success'
-      );
+  if (!button) return;
 
-      showScreen('homeScreen');
-    } catch (error) {
-      setAuthMessage(friendlyFirebaseError(error), 'error');
-    }
-  });
+  const target = button.dataset.go;
 
-document
-  .getElementById('registerBtn')
-  ?.addEventListener('click', async () => {
-    const email = document
-      .getElementById('loginEmail')
-      ?.value
-      ?.trim();
-
-    const password =
-      document.getElementById('loginPassword')?.value;
-
-    const role =
-      document.getElementById('roleSelect')?.value ||
-      'Ciudadano';
-
-    if (!email || !password) {
-      return setAuthMessage(
-        'Para registrarte escribe correo y contraseña.',
-        'error'
-      );
-    }
-
-    setAuthMessage('Registrando usuario...', 'info');
-
-    try {
-      await registrarUsuario(email, password, role);
-
-      setAuthMessage(
-        'Registro exitoso. Usuario creado en Firebase.',
-        'success'
-      );
-
-      showScreen('homeScreen');
-    } catch (error) {
-      setAuthMessage(friendlyFirebaseError(error), 'error');
-    }
-  });
-
-document
-  .getElementById('logoutBtn')
-  ?.addEventListener('click', async () => {
-    try {
-      await cerrarSesion();
-      showScreen('loginScreen');
-      setAuthMessage('Sesión cerrada.', 'info');
-    } catch {
-      setAuthMessage('No se pudo cerrar sesión.', 'error');
-    }
-  });
-
-document
-  .getElementById('sendReport')
-  ?.addEventListener('click', async () => {
-    if (!currentUser) {
-      alert('Debes iniciar sesión para enviar un reporte.');
-      return showScreen('loginScreen');
-    }
-
-    const desc =
-      document.getElementById('desc')?.value?.trim();
-
-    const tiempo =
-      document.getElementById('incidentTime')?.value ||
-      'No especificado';
-
-    if (!desc) {
-      alert('Agrega una descripción del problema.');
-      return showScreen('reportInfoScreen');
-    }
-
-    try {
-      const folio =
-        `#INC-${new Date().getFullYear()}-${Math.floor(Date.now() / 1000).toString().slice(-5)}`;
-
-      await crearIncidencia({
-        folio,
-        tipo: selectedCategoryValue,
-        descripcion: desc,
-        tiempo,
-        gravedad: selectedSeverity,
-        ubicacion: locationLabel,
-        coordenadas: currentLocation,
-        evidenciaNombre: selectedEvidenceName,
-        idCiudadano: currentUser.uid,
-        correoCiudadano: currentUser.email,
-        estado: 'Pendiente',
-        asignadoA: 'Apoyo comunitario'
-      });
-
-      alert(`Reporte enviado correctamente: ${folio}`);
-
-      document.getElementById('incidentForm')?.reset();
-
-      selectedEvidenceName = 'Sin archivo';
-
-      const evidenceLabel =
-        document.getElementById('evidenceLabel');
-
-      if (evidenceLabel) {
-        evidenceLabel.textContent =
-          'Tomar foto o seleccionar imagen';
-      }
-
-      await loadUserReports();
-      await loadReportsMap();
-
-      showScreen('homeScreen');
-    } catch (error) {
-      alert(friendlyFirebaseError(error));
-    }
-  });
-
-document
-  .getElementById('evidenceFile')
-  ?.addEventListener('change', event => {
-    const file = event.target.files?.[0];
-
-    selectedEvidenceName = file ? file.name : 'Sin archivo';
-
-    const evidenceLabel =
-      document.getElementById('evidenceLabel');
-
-    if (evidenceLabel) {
-      evidenceLabel.textContent = selectedEvidenceName;
-    }
-
+  if (button.dataset.category) {
+    selectedCategoryValue = button.dataset.category;
     updateSummary();
-  });
+  }
+
+  showScreen(target);
+});
+
+/* ===============================
+   FORMULARIO DE INCIDENCIA
+================================ */
+
+document.getElementById('desc')?.addEventListener('input', updateSummary);
 
 document.querySelectorAll('.severity button').forEach(button => {
   button.addEventListener('click', () => {
-    document
-      .querySelectorAll('.severity button')
-      .forEach(btn => btn.classList.remove('active'));
-
+    document.querySelectorAll('.severity button').forEach(item => item.classList.remove('active'));
     button.classList.add('active');
     selectedSeverity = button.textContent.trim();
   });
 });
 
+document.getElementById('evidenceFile')?.addEventListener('change', event => {
+  const file = event.target.files?.[0];
+  selectedEvidenceName = file ? file.name : 'Sin archivo';
+
+  const label = document.getElementById('evidenceLabel');
+  if (label) label.textContent = selectedEvidenceName;
+
+  updateSummary();
+});
+
+document.getElementById('sendReport')?.addEventListener('click', async () => {
+  if (!currentUser) {
+    alert('Debes iniciar sesión para enviar un reporte.');
+    return showScreen('loginScreen');
+  }
+
+  const description = document.getElementById('desc')?.value?.trim();
+
+  if (!description) {
+    alert('Agrega una descripción del problema.');
+    return showScreen('reportInfoScreen');
+  }
+
+  if (!currentLocation) {
+    alert('Selecciona una ubicación en el mapa.');
+    return showScreen('locationScreen');
+  }
+
+  const folio = `#INC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+  try {
+    await crearIncidencia({
+      folio,
+      idCiudadano: currentUser.uid,
+      correoCiudadano: currentUser.email,
+      tipo: selectedCategoryValue,
+      descripcion: description,
+      gravedad: selectedSeverity,
+      tiempo: document.getElementById('incidentTime')?.value || 'Sin especificar',
+      evidenciaNombre: selectedEvidenceName,
+      ubicacion: locationLabel,
+      coordenadas: currentLocation,
+      estado: 'Pendiente'
+    });
+
+    alert(`Reporte enviado correctamente: ${folio}`);
+
+    document.getElementById('incidentForm')?.reset();
+    selectedEvidenceName = 'Sin archivo';
+    await loadUserReports();
+    showScreen('homeScreen');
+  } catch (error) {
+    alert(friendlyFirebaseError(error));
+  }
+});
+
 /* ===============================
-   SESIÓN DE FIREBASE
+   AUTENTICACIÓN
 ================================ */
 
-escucharSesion(user => {
+document.getElementById('loginForm')?.addEventListener('submit', async event => {
+  event.preventDefault();
+
+  const email = document.getElementById('loginEmail')?.value.trim();
+  const password = document.getElementById('loginPassword')?.value;
+  const role = document.getElementById('roleSelect')?.value || 'Ciudadano';
+
+  setAuthMessage('Iniciando sesión...', 'info');
+
+  try {
+    const credential = await iniciarSesion(email, password);
+    currentUser = credential.user;
+
+    localStorage.setItem('conectaPerfil', JSON.stringify({
+      ...JSON.parse(localStorage.getItem('conectaPerfil') || '{}'),
+      correo: email,
+      nombre: email.split('@')[0],
+      rol: role
+    }));
+
+    setAuthMessage('Sesión iniciada correctamente.', 'success');
+    fillProfileDataForm();
+    await loadUserReports();
+    showScreen(role.toLowerCase().includes('apoyo') ? 'supportScreen' : 'homeScreen');
+  } catch (error) {
+    setAuthMessage(friendlyFirebaseError(error), 'error');
+  }
+});
+
+document.getElementById('registerBtn')?.addEventListener('click', async () => {
+  const email = document.getElementById('loginEmail')?.value.trim();
+  const password = document.getElementById('loginPassword')?.value;
+  const role = document.getElementById('roleSelect')?.value || 'Ciudadano';
+
+  if (!email || !password) {
+    setAuthMessage('Escribe correo y contraseña para registrarte.', 'error');
+    return;
+  }
+
+  setAuthMessage('Creando cuenta...', 'info');
+
+  try {
+    const credential = await registrarUsuario(email, password, role);
+    currentUser = credential.user;
+
+    localStorage.setItem('conectaPerfil', JSON.stringify({
+      correo: email,
+      nombre: email.split('@')[0],
+      telefono: '',
+      rol: role
+    }));
+
+    setAuthMessage('Cuenta creada correctamente.', 'success');
+    fillProfileDataForm();
+    await loadUserReports();
+    showScreen(role.toLowerCase().includes('apoyo') ? 'supportScreen' : 'homeScreen');
+  } catch (error) {
+    setAuthMessage(friendlyFirebaseError(error), 'error');
+  }
+});
+
+escucharSesion(async user => {
   currentUser = user;
 
-  const selectedRole =
-    document.getElementById('roleSelect')?.value ||
-    'Ciudadano';
-
   if (user) {
-    const saved = JSON.parse(
-      localStorage.getItem('conectaPerfil') || '{}'
-    );
+    const stored = JSON.parse(localStorage.getItem('conectaPerfil') || '{}');
 
-    const name =
-      saved.nombre ||
-      user.email?.split('@')[0] ||
-      'Usuario';
+    localStorage.setItem('conectaPerfil', JSON.stringify({
+      ...stored,
+      correo: user.email,
+      nombre: stored.nombre || user.email.split('@')[0]
+    }));
 
-    const role =
-      saved.rol ||
-      selectedRole;
-
-    const homeGreeting = document.getElementById('homeGreeting');
-    const profileName = document.getElementById('profileName');
-    const profileRole = document.getElementById('profileRole');
-
-    if (homeGreeting) {
-      homeGreeting.textContent = `¡Hola, ${name}! 👋`;
-    }
-
-    if (profileName) {
-      profileName.textContent = name;
-    }
-
-    if (profileRole) {
-      profileRole.textContent = `${role} activo`;
-    }
-
-    loadUserReports();
     fillProfileDataForm();
+    await loadUserReports();
   }
 });
 
-/* ===============================
-   CARRUSEL DE ONBOARDING
-================================ */
-
-const carousel = document.getElementById('incidentCarousel');
-const slides = Array.from(document.querySelectorAll('.incident-slide'));
-const dots = Array.from(document.querySelectorAll('#onboardingDots span'));
-const title = document.getElementById('onboardingTitle');
-const text = document.getElementById('onboardingText');
-const nextSlideBtn = document.getElementById('nextSlideBtn');
-
-let currentSlide = 0;
-let startX = 0;
-let currentX = 0;
-let isDragging = false;
-let autoSlideTimer = null;
-
-function updateCarousel(index) {
-  if (!slides.length) return;
-
-  currentSlide = (index + slides.length) % slides.length;
-
-  slides.forEach((slide, i) => {
-    slide.classList.toggle('active', i === currentSlide);
-    slide.style.transform =
-      `translateX(${(i - currentSlide) * 100}%)`;
-  });
-
-  dots.forEach((dot, i) => {
-    dot.classList.toggle('active', i === currentSlide);
-  });
-
-  const activeSlide = slides[currentSlide];
-
-  if (title) title.innerHTML = activeSlide.dataset.title || '';
-  if (text) text.textContent = activeSlide.dataset.text || '';
-}
-
-function nextSlide() {
-  if (currentSlide === slides.length - 1) {
+document.getElementById('logoutBtn')?.addEventListener('click', async () => {
+  try {
+    await cerrarSesion();
+    currentUser = null;
+    cachedUserReports = [];
     showScreen('loginScreen');
-  } else {
-    updateCarousel(currentSlide + 1);
+  } catch (error) {
+    alert(friendlyFirebaseError(error));
   }
-}
-
-function previousSlide() {
-  updateCarousel(currentSlide - 1);
-}
-
-function stopAutoSlide() {
-  if (autoSlideTimer) clearInterval(autoSlideTimer);
-}
-
-function startAutoSlide() {
-  stopAutoSlide();
-
-  autoSlideTimer = setInterval(() => {
-    if (
-      document
-        .getElementById('onboardingScreen')
-        ?.classList
-        .contains('active')
-    ) {
-      updateCarousel(currentSlide + 1);
-    }
-  }, 5200);
-}
-
-function dragTo(distance) {
-  slides.forEach((slide, i) => {
-    slide.style.transition = 'none';
-    slide.style.transform =
-      `translateX(calc(${(i - currentSlide) * 100}% + ${distance}px))`;
-  });
-}
-
-function resetTransition() {
-  slides.forEach(slide => {
-    slide.style.transition =
-      'transform .36s cubic-bezier(.22,.61,.36,1), opacity .25s ease';
-  });
-}
-
-if (carousel && slides.length) {
-  updateCarousel(0);
-  startAutoSlide();
-
-  carousel.addEventListener('touchstart', e => {
-    stopAutoSlide();
-    isDragging = true;
-    startX = e.touches[0].clientX;
-    currentX = startX;
-  }, { passive: true });
-
-  carousel.addEventListener('touchmove', e => {
-    if (!isDragging) return;
-
-    currentX = e.touches[0].clientX;
-    dragTo(currentX - startX);
-  }, { passive: true });
-
-  carousel.addEventListener('touchend', () => {
-    if (!isDragging) return;
-
-    isDragging = false;
-    resetTransition();
-
-    const distance = currentX - startX;
-
-    if (Math.abs(distance) > 55) {
-      if (distance < 0) {
-        updateCarousel(currentSlide + 1);
-      } else {
-        previousSlide();
-      }
-    } else {
-      updateCarousel(currentSlide);
-    }
-
-    startAutoSlide();
-  });
-
-  dots.forEach((dot, index) => {
-    dot.addEventListener('click', () => {
-      stopAutoSlide();
-      updateCarousel(index);
-      startAutoSlide();
-    });
-  });
-
-  nextSlideBtn?.addEventListener('click', () => {
-    stopAutoSlide();
-    nextSlide();
-    startAutoSlide();
-  });
-}
-
-/* ===============================
-   CATEGORÍAS
-================================ */
-
-document.querySelectorAll('[data-category]').forEach(button => {
-  button.addEventListener('click', () => {
-    selectedCategoryValue =
-      button.dataset.category ||
-      selectedCategoryValue;
-
-    const selected =
-      document.getElementById('selectedCategory');
-
-    if (selected) {
-      selected.textContent = selectedCategoryValue;
-    }
-  });
 });
 
 /* ===============================
-   NAVEGACIÓN GLOBAL
+   CONFIGURACIÓN Y SOPORTE
 ================================ */
 
-document.addEventListener('click', event => {
-  const target = event.target.closest('[data-go]');
+document.getElementById('profileDataForm')?.addEventListener('submit', event => {
+  event.preventDefault();
 
-  if (!target) return;
+  const storedProfile = JSON.parse(localStorage.getItem('conectaPerfil') || '{}');
+  const updatedProfile = {
+    ...storedProfile,
+    nombre: document.getElementById('profileNameInput')?.value || storedProfile.nombre,
+    telefono: document.getElementById('profilePhoneInput')?.value || '',
+    rol: document.getElementById('profileRoleInput')?.value || storedProfile.rol || 'Ciudadano',
+    correo: currentUser?.email || storedProfile.correo || ''
+  };
 
-  const screenId = target.dataset.go;
+  localStorage.setItem('conectaPerfil', JSON.stringify(updatedProfile));
+  fillProfileDataForm();
 
-  if (!screenId) return;
+  const message = document.getElementById('profileDataMessage');
+  if (message) message.textContent = 'Datos guardados correctamente.';
+});
 
-  showScreen(screenId);
+document.getElementById('saveSettingsBtn')?.addEventListener('click', () => {
+  const settings = {
+    notifyReports: document.getElementById('notifyReports')?.checked,
+    allowLocation: document.getElementById('allowLocationSetting')?.checked,
+    compactMode: document.getElementById('compactModeSetting')?.checked
+  };
+
+  localStorage.setItem('conectaConfiguracion', JSON.stringify(settings));
+
+  const message = document.getElementById('settingsMessage');
+  if (message) message.textContent = 'Configuración guardada correctamente.';
+});
+
+document.getElementById('sendSupportBtn')?.addEventListener('click', () => {
+  const supportMessage = document.getElementById('supportMessage')?.value.trim();
+  const result = document.getElementById('supportMessageResult');
+
+  if (!supportMessage) {
+    if (result) result.textContent = 'Escribe un mensaje antes de enviar.';
+    return;
+  }
+
+  if (result) result.textContent = 'Mensaje enviado a soporte.';
+  document.getElementById('supportMessage').value = '';
 });
 
 /* ===============================
-   INICIALIZACIÓN FINAL
+   INICIALIZACIÓN
 ================================ */
 
 document.addEventListener('DOMContentLoaded', () => {
+  initSplashInfoModal();
   initProfilePanels();
   fillProfileDataForm();
 });
