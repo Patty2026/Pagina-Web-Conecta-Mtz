@@ -14,9 +14,14 @@ const allowed = new Set([
 
 const MAX_RESOLUTION_DISTANCE_METERS = 120;
 
+let supportReady = false;
+
 function roleValue() {
+  const loginVisible = document.getElementById('loginScreen')?.classList.contains('active');
   const selectRole = document.getElementById('roleSelect')?.value || '';
   const stored = JSON.parse(localStorage.getItem('conectaPerfil') || '{}');
+
+  if (loginVisible) return selectRole || 'Ciudadano';
   return stored.rol || selectRole || 'Ciudadano';
 }
 
@@ -377,39 +382,37 @@ function protectSupportActions() {
       showOnly('supportScreen');
     }
   }, true);
+}
+
+function activateSupportModeAfterAuth() {
+  setTimeout(() => {
+    if (!isSupport()) return;
+    applySupportMenu();
+    showOnly('supportScreen');
+  }, 900);
+}
+
+function initSupportRole() {
+  if (supportReady) return;
+  supportReady = true;
+
+  protectSupportActions();
 
   const loginForm = document.getElementById('loginForm');
-  loginForm?.addEventListener('submit', () => {
-    setTimeout(() => {
-      const selectedRole = document.getElementById('roleSelect')?.value || 'Ciudadano';
-      if (selectedRole.toLowerCase().includes('apoyo')) {
-        const stored = JSON.parse(localStorage.getItem('conectaPerfil') || '{}');
-        localStorage.setItem('conectaPerfil', JSON.stringify({ ...stored, rol: selectedRole }));
-        applySupportMenu();
-        showOnly('supportScreen');
-      }
-    }, 900);
-  });
+  loginForm?.addEventListener('submit', activateSupportModeAfterAuth);
 
   const registerBtn = document.getElementById('registerBtn');
-  registerBtn?.addEventListener('click', () => {
-    setTimeout(() => {
-      const selectedRole = document.getElementById('roleSelect')?.value || 'Ciudadano';
-      if (selectedRole.toLowerCase().includes('apoyo')) {
-        const stored = JSON.parse(localStorage.getItem('conectaPerfil') || '{}');
-        localStorage.setItem('conectaPerfil', JSON.stringify({ ...stored, rol: selectedRole }));
-        applySupportMenu();
-        showOnly('supportScreen');
-      }
-    }, 900);
-  });
+  registerBtn?.addEventListener('click', activateSupportModeAfterAuth);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  applySupportMenu();
-  protectSupportActions();
-  if (isSupport()) loadSupportReports();
+  initSupportRole();
+  if (isSupport() && document.getElementById('supportScreen')?.classList.contains('active')) {
+    applySupportMenu();
+    loadSupportReports();
+  }
 });
 
 window.loadSupportReports = loadSupportReports;
 window.applySupportMenu = applySupportMenu;
+window.activateSupportModeAfterAuth = activateSupportModeAfterAuth;
