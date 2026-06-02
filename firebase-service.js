@@ -20,10 +20,17 @@ import {
   setDoc,
   getDoc
 } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
+import {
+  getStorage,
+  ref,
+  uploadBytes,
+  getDownloadURL
+} from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js';
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const storage = getStorage(app);
 
 function fechaMillis(valor) {
   if (!valor) return 0;
@@ -34,6 +41,14 @@ function fechaMillis(valor) {
 
 function ordenarPorFechaDesc(a, b) {
   return fechaMillis(b.fechaRegistro) - fechaMillis(a.fechaRegistro);
+}
+
+function limpiarNombreArchivo(nombre = 'evidencia.jpg') {
+  return nombre
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .toLowerCase();
 }
 
 export async function registrarUsuario(correo, password, rol = 'Ciudadano') {
@@ -84,6 +99,28 @@ export async function crearIncidencia(data) {
   });
 }
 
+export async function crearIncidenciaConEvidencia(data, file) {
+  const docRef = await crearIncidencia({
+    ...data,
+    evidenciaNombre: file ? file.name : data.evidenciaNombre || 'Sin archivo',
+    evidenciaUrl: null,
+    evidenciaRuta: null
+  });
+
+  if (file) {
+    const evidencia = await subirImagenIncidencia(file, docRef.id, 'ciudadano');
+    await actualizarAtencionIncidencia(docRef.id, {
+      evidenciaNombre: evidencia.nombre,
+      evidenciaUrl: evidencia.url,
+      evidenciaRuta: evidencia.ruta,
+      evidenciaTipo: evidencia.tipo,
+      evidenciaTamano: evidencia.tamano
+    });
+  }
+
+  return docRef;
+}
+
 export async function obtenerIncidenciasPorUsuario(userId) {
   const q = query(
     collection(db, 'incidencias'),
@@ -130,8 +167,50 @@ export async function actualizarAtencionIncidencia(idIncidencia, data = {}) {
   });
 }
 
-export async function subirImagenIncidencia(file) {
-  return file ? file.name : null;
+export async function subirImagenIncidencia(file, idIncidencia = 'sin-id', carpeta = 'general') {
+  if (!file) return null;
+
+  const userId = auth.currentUser?.uid || 'anonimo';
+  const timestamp = Date.now();
+  const nombreSeguro = limpiarNombreArchivo(file.name);
+  const ruta = `evidencias/${idIncidencia}/${carpeta}/${userId}_${timestamp}_${nombreSeguro}`;
+  const storageRef = ref(storage, ruta);
+
+  const uploadResult = await uploadBytes(storageRef, file, {
+    contentType: file.type || 'image/jpeg',
+    customMetadata: {
+      idIncidencia,
+      carpeta,
+      userId
+    }
+  });
+
+  const url = await getDownloadURL(uploadResult.ref);
+
+  return {
+    nombre: file.name,
+    ruta,
+    url,
+    tipo: file.type || 'image/jpeg',
+    tamano: file.size || 0
+  };
 }
 
-export { auth, db };
+export async function subirEvidenciaAtencion(idIncidencia, file, extraData = {}) {
+  const evidencia = await subirImagenIncidencia(file, idIncidencia, 'atencion');
+
+  await actualizarAtencionIncidencia(idIncidencia, {
+    evidenciaAtencionNombre: evidencia.nombre,
+    evidenciaAtencionRuta: evidencia.ruta,
+    evidenciaAtencionUrl: evidencia.url,
+    evidenciaAtencionTipo: evidencia.tipo,
+    evidenciaAtencionTamano: evidencia.tamano,
+    evidenciaAtencionFecha: new Date().toISOString(),
+    evidenciaAtencionValidada: true,
+    ...extraData
+  });
+
+  return evidencia;
+}
+
+export { auth, db, storage };
