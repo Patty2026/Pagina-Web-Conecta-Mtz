@@ -122,8 +122,14 @@ export async function actualizarEstadoIncidencia(idIncidencia, estado, comentari
   });
 }
 
-// Storage queda pendiente porque el plan Spark puede solicitar actualización.
-// Por ahora las evidencias se guardan como nombre de archivo dentro de Firestore.
+export async function actualizarAtencionIncidencia(idIncidencia, data = {}) {
+  const incidenciaRef = doc(db, 'incidencias', idIncidencia);
+  return updateDoc(incidenciaRef, {
+    ...data,
+    fechaActualizacion: serverTimestamp()
+  });
+}
+
 export async function subirImagenIncidencia(file) {
   return file ? file.name : null;
 }
