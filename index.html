@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b1555" />
   <title>Conecta Martínez | App Ciudadana</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="./styles.css?v=20260601-splash-exact" />
+  <link rel="stylesheet" href="./styles.css?v=20260601-info-modal" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
@@ -17,12 +17,19 @@
       <div class="splash-logo-wrap">
         <div class="logo-mark"></div>
       </div>
-      <div class="splash-info-window">
-        <button class="splash-close" type="button" aria-label="Cerrar información">×</button>
-        <div class="splash-info-title"><span class="info-icon">i</span><b>Acerca de ConectaMartínez</b></div>
-        <p>ConectaMartínez es la plataforma oficial de participación ciudadana de nuestro municipio.</p>
-        <p>Reporta problemas, da seguimiento y mantente informado sobre las incidencias que afectan tu comunidad.</p>
-        <p>Tu participación ayuda a construir un municipio más eficiente, transparente y seguro para todos.</p>
+      <button class="splash-info-bar" type="button" id="openSplashInfo">
+        <span class="info-icon">i</span>
+        <b>Acerca de ConectaMartínez</b>
+        <span class="bar-arrow">›</span>
+      </button>
+      <div class="splash-info-overlay" id="splashInfoOverlay" aria-hidden="true">
+        <div class="splash-info-window">
+          <button class="splash-close" type="button" id="closeSplashInfo" aria-label="Cerrar información">×</button>
+          <div class="splash-info-title"><span class="info-icon">i</span><b>Acerca de ConectaMartínez</b></div>
+          <p>ConectaMartínez es la plataforma oficial de participación ciudadana de nuestro municipio.</p>
+          <p>Reporta problemas, da seguimiento y mantente informado sobre las incidencias que afectan tu comunidad.</p>
+          <p>Tu participación ayuda a construir un municipio más eficiente, transparente y seguro para todos.</p>
+        </div>
       </div>
       <button class="main-btn splash-start" data-go="onboardingScreen"><span>➜</span>Comenzar</button>
     </section>
