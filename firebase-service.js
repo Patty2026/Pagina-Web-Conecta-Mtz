@@ -136,6 +136,14 @@ export async function obtenerPerfilUsuario(userId) {
   const snapshot = await getDoc(usuarioRef);
   return snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null;
 }
+export async function crearIncidencia(data) {
+  return addDoc(collection(db, 'incidencias'), {
+    ...data,
+    estado: data.estado || 'Pendiente',
+    fechaRegistro: serverTimestamp(),
+    fechaActualizacion: serverTimestamp()
+  });
+}
 
 export async function crearIncidenciaConEvidencia(data, file) {
   const evidencia = file ? await convertirImagenABase64(file) : null;
@@ -156,29 +164,6 @@ export async function crearIncidenciaConEvidencia(data, file) {
     } : null
   });
 }
-
-export async function crearIncidenciaConEvidencia(data, file) {
-  const docRef = await crearIncidencia({
-    ...data,
-    evidenciaNombre: file ? file.name : data.evidenciaNombre || 'Sin archivo',
-    evidenciaUrl: null,
-    evidenciaRuta: null
-  });
-
-  if (file) {
-    const evidencia = await subirImagenIncidencia(file, docRef.id, 'ciudadano');
-    await actualizarAtencionIncidencia(docRef.id, {
-      evidenciaNombre: evidencia.nombre,
-      evidenciaUrl: evidencia.url,
-      evidenciaRuta: evidencia.ruta,
-      evidenciaTipo: evidencia.tipo,
-      evidenciaTamano: evidencia.tamano
-    });
-  }
-
-  return docRef;
-}
-
 export async function obtenerIncidenciasPorUsuario(userId) {
   const q = query(
     collection(db, 'incidencias'),
