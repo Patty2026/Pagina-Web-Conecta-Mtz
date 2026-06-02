@@ -1,0 +1,59 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userProfile() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+    }
+
+    function userRole() {
+      return signedIn() && userProfile().rol != null
+        ? lower(userProfile().rol)
+        : '';
+    }
+
+    function isAdmin() {
+      return userRole().matches('.*administrador.*');
+    }
+
+    function isSupport() {
+      return userRole().matches('.*apoyo.*');
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    match /usuarios/{userId} {
+      allow create: if signedIn() && isOwner(userId);
+      allow read: if signedIn() && (isOwner(userId) || isAdmin());
+      allow update: if signedIn() && (isOwner(userId) || isAdmin());
+      allow delete: if signedIn() && isAdmin();
+    }
+
+    match /incidencias/{incidenciaId} {
+      allow create: if signedIn()
+        && request.resource.data.idCiudadano == request.auth.uid;
+
+      allow read: if signedIn() && (
+        resource.data.idCiudadano == request.auth.uid ||
+        isSupport() ||
+        isAdmin()
+      );
+
+      allow update: if signedIn() && (
+        resource.data.idCiudadano == request.auth.uid ||
+        isSupport() ||
+        isAdmin()
+      );
+
+      allow delete: if signedIn() && (
+        resource.data.idCiudadano == request.auth.uid ||
+        isAdmin()
+      );
+    }
+  }
+}
