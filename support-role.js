@@ -1,6 +1,7 @@
 import {
   obtenerTodasLasIncidencias,
-  actualizarAtencionIncidencia
+  actualizarAtencionIncidencia,
+  subirEvidenciaAtencion
 } from './firebase-service.js';
 
 const allowed = new Set([
@@ -253,22 +254,18 @@ async function loadSupportReports() {
           const incidentCoords = getReportCoords(report);
           const distance = incidentCoords ? haversineMeters(supportLocation, incidentCoords) : null;
 
-          await actualizarAtencionIncidencia(report.id, {
-            evidenciaAtencionNombre: file.name,
-            evidenciaAtencionTipo: file.type,
-            evidenciaAtencionTamano: file.size,
-            evidenciaAtencionFecha: new Date().toISOString(),
-            evidenciaAtencionValidada: true,
+          const evidencia = await subirEvidenciaAtencion(report.id, file, {
             ubicacionEvidencia: supportLocation,
             distanciaEvidenciaMetros: distance,
             estado: normalizeStatus(report.estado) === 'Pendiente' ? 'En proceso' : report.estado
           });
 
-          report.evidenciaAtencionNombre = file.name;
+          report.evidenciaAtencionNombre = evidencia.nombre;
+          report.evidenciaAtencionBase64 = evidencia.base64;
           report.ubicacionEvidencia = supportLocation;
           report.distanciaEvidenciaMetros = distance;
 
-          if (nameEl) nameEl.textContent = `Evidencia adjunta: ${file.name}`;
+          if (nameEl) nameEl.textContent = `Evidencia adjunta: ${evidencia.nombre}`;
           if (hintEl) hintEl.textContent = distance === null ? 'Evidencia registrada. Verifica ubicación para resolver.' : `Evidencia registrada a ${distance} m del incidente.`;
           if (resolveBtn) resolveBtn.disabled = false;
         } catch (error) {
