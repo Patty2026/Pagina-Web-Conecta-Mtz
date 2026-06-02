@@ -20,17 +20,10 @@ import {
   setDoc,
   getDoc
 } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
-import {
-  getStorage,
-  ref,
-  uploadBytes,
-  getDownloadURL
-} from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js';
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const storage = getStorage(app);
 
 function fechaMillis(valor) {
   if (!valor) return 0;
@@ -49,6 +42,60 @@ function limpiarNombreArchivo(nombre = 'evidencia.jpg') {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-zA-Z0-9._-]/g, '_')
     .toLowerCase();
+}
+function leerArchivo(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+
+    reader.readAsDataURL(file);
+  });
+}
+
+function cargarImagen(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+
+    img.src = dataUrl;
+  });
+}
+
+export async function convertirImagenABase64(file, maxWidth = 720, quality = 0.65) {
+  if (!file) return null;
+
+  const dataUrl = await leerArchivo(file);
+  const img = await cargarImagen(dataUrl);
+
+  const scale = Math.min(1, maxWidth / img.width);
+  const width = Math.round(img.width * scale);
+  const height = Math.round(img.height * scale);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, width, height);
+
+  const base64 = canvas.toDataURL('image/jpeg', quality);
+
+  return {
+    nombre: file.name,
+    nombreSeguro: limpiarNombreArchivo(file.name),
+    base64,
+    tipo: 'image/jpeg',
+    tamanoOriginal: file.size || 0,
+    tamanoBase64: base64.length,
+    ancho: width,
+    alto: height,
+    metodo: 'firestore-base64',
+    fecha: new Date().toISOString()
+  };
 }
 
 export async function registrarUsuario(correo, password, rol = 'Ciudadano') {
@@ -90,12 +137,23 @@ export async function obtenerPerfilUsuario(userId) {
   return snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null;
 }
 
-export async function crearIncidencia(data) {
-  return addDoc(collection(db, 'incidencias'), {
+export async function crearIncidenciaConEvidencia(data, file) {
+  const evidencia = file ? await convertirImagenABase64(file) : null;
+
+  return crearIncidencia({
     ...data,
-    estado: data.estado || 'Pendiente',
-    fechaRegistro: serverTimestamp(),
-    fechaActualizacion: serverTimestamp()
+    evidenciaNombre: evidencia ? evidencia.nombre : data.evidenciaNombre || 'Sin archivo',
+    evidenciaBase64: evidencia?.base64 || null,
+    evidenciaTipo: evidencia?.tipo || null,
+    evidenciaTamano: evidencia?.tamanoBase64 || 0,
+    evidenciaMetodo: evidencia?.metodo || 'sin-evidencia',
+    evidenciaMeta: evidencia ? {
+      ancho: evidencia.ancho,
+      alto: evidencia.alto,
+      tamanoOriginal: evidencia.tamanoOriginal,
+      tamanoBase64: evidencia.tamanoBase64,
+      fecha: evidencia.fecha
+    } : null
   });
 }
 
@@ -167,50 +225,35 @@ export async function actualizarAtencionIncidencia(idIncidencia, data = {}) {
   });
 }
 
-export async function subirImagenIncidencia(file, idIncidencia = 'sin-id', carpeta = 'general') {
-  if (!file) return null;
-
-  const userId = auth.currentUser?.uid || 'anonimo';
-  const timestamp = Date.now();
-  const nombreSeguro = limpiarNombreArchivo(file.name);
-  const ruta = `evidencias/${idIncidencia}/${carpeta}/${userId}_${timestamp}_${nombreSeguro}`;
-  const storageRef = ref(storage, ruta);
-
-  const uploadResult = await uploadBytes(storageRef, file, {
-    contentType: file.type || 'image/jpeg',
-    customMetadata: {
-      idIncidencia,
-      carpeta,
-      userId
-    }
-  });
-
-  const url = await getDownloadURL(uploadResult.ref);
-
-  return {
-    nombre: file.name,
-    ruta,
-    url,
-    tipo: file.type || 'image/jpeg',
-    tamano: file.size || 0
-  };
-}
-
-export async function subirEvidenciaAtencion(idIncidencia, file, extraData = {}) {
-  const evidencia = await subirImagenIncidencia(file, idIncidencia, 'atencion');
+export async function guardarEvidenciaAtencionBase64(idIncidencia, file, extraData = {}) {
+  const evidencia = await convertirImagenABase64(file);
 
   await actualizarAtencionIncidencia(idIncidencia, {
     evidenciaAtencionNombre: evidencia.nombre,
-    evidenciaAtencionRuta: evidencia.ruta,
-    evidenciaAtencionUrl: evidencia.url,
+    evidenciaAtencionBase64: evidencia.base64,
     evidenciaAtencionTipo: evidencia.tipo,
-    evidenciaAtencionTamano: evidencia.tamano,
-    evidenciaAtencionFecha: new Date().toISOString(),
+    evidenciaAtencionTamano: evidencia.tamanoBase64,
+    evidenciaAtencionMetodo: evidencia.metodo,
+    evidenciaAtencionFecha: evidencia.fecha,
     evidenciaAtencionValidada: true,
+    evidenciaAtencionMeta: {
+      ancho: evidencia.ancho,
+      alto: evidencia.alto,
+      tamanoOriginal: evidencia.tamanoOriginal,
+      tamanoBase64: evidencia.tamanoBase64
+    },
     ...extraData
   });
 
   return evidencia;
 }
 
-export { auth, db, storage };
+export async function subirImagenIncidencia(file) {
+  return convertirImagenABase64(file);
+}
+
+export async function subirEvidenciaAtencion(idIncidencia, file, extraData = {}) {
+  return guardarEvidenciaAtencionBase64(idIncidencia, file, extraData);
+}
+
+export { auth, db };
