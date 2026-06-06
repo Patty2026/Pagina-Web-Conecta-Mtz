@@ -8,42 +8,67 @@ function normalizeEmail(email = '') {
 function resolveAdminRole(email = '') {
   const normalized = normalizeEmail(email);
 
-  if (SUPERADMIN_EMAILS.includes(normalized)) {
-    return 'Superadmin';
-  }
-
-  if (ADMIN_EMAILS.includes(normalized)) {
-    return 'Administrador';
-  }
+  if (SUPERADMIN_EMAILS.includes(normalized)) return 'Superadmin';
+  if (ADMIN_EMAILS.includes(normalized)) return 'Administrador';
 
   return null;
 }
 
-window.resolveAdminRole = resolveAdminRole;
+function getStoredProfile() {
+  try {
+    return JSON.parse(localStorage.getItem('conectaPerfil') || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function getLoginEmail() {
+  return document.getElementById('loginEmail')?.value || '';
+}
+
+function getAdminEmailCandidate() {
+  const stored = getStoredProfile();
+  return stored.correo || stored.email || getLoginEmail();
+}
+
 function isAdminUser() {
-  const stored = JSON.parse(localStorage.getItem('conectaPerfil') || '{}');
-  return resolveAdminRole(stored.correo || stored.email || '') !== null;
+  return resolveAdminRole(getAdminEmailCandidate()) !== null;
 }
 
 function getCurrentAdminRole() {
-  const stored = JSON.parse(localStorage.getItem('conectaPerfil') || '{}');
-  return resolveAdminRole(stored.correo || stored.email || '');
+  return resolveAdminRole(getAdminEmailCandidate());
+}
+
+function saveAdminProfile(email, role) {
+  const stored = getStoredProfile();
+  const safeEmail = normalizeEmail(email || stored.correo || stored.email || getLoginEmail());
+
+  localStorage.setItem('conectaPerfil', JSON.stringify({
+    ...stored,
+    correo: safeEmail,
+    email: safeEmail,
+    nombre: stored.nombre || safeEmail.split('@')[0] || role,
+    rol: role
+  }));
 }
 
 function applyAdminPanelInfo() {
   const role = getCurrentAdminRole();
-
   const title = document.getElementById('adminRoleTitle');
   const description = document.getElementById('adminRoleDescription');
+  const profileName = document.getElementById('profileName');
+  const profileRole = document.getElementById('profileRole');
 
   if (title) title.textContent = role || 'Administrador';
 
   if (description) {
-    description.textContent =
-      role === 'Superadmin'
-        ? 'Acceso total: usuarios, administradores, reportes, estadísticas y configuración general.'
-        : 'Acceso operativo: gestión de reportes, mapa, notificaciones y estadísticas básicas.';
+    description.textContent = role === 'Superadmin'
+      ? 'Acceso total: usuarios, administradores, reportes, estadísticas y configuración general.'
+      : 'Acceso operativo: gestión de reportes, mapa, notificaciones y estadísticas básicas.';
   }
+
+  if (profileName && role) profileName.textContent = role;
+  if (profileRole && role) profileRole.textContent = `${role} activo`;
 
   document.querySelectorAll('[data-superadmin-only]').forEach(item => {
     item.style.display = role === 'Superadmin' ? '' : 'none';
@@ -51,6 +76,9 @@ function applyAdminPanelInfo() {
 }
 
 function goAdminPanel() {
+  const role = getCurrentAdminRole();
+  if (!role) return;
+
   document.querySelectorAll('.screen').forEach(screen => {
     screen.classList.remove('active');
   });
@@ -63,43 +91,68 @@ function goAdminPanel() {
   }
 }
 
-window.isAdminUser = isAdminUser;
-window.getCurrentAdminRole = getCurrentAdminRole;
-window.goAdminPanel = goAdminPanel;
-window.applyAdminPanelInfo = applyAdminPanelInfo;
+function forceAdminPanel() {
+  const email = getAdminEmailCandidate();
+  const role = resolveAdminRole(email);
+
+  if (!role) return false;
+
+  saveAdminProfile(email, role);
+  goAdminPanel();
+  return true;
+}
+
 function activateAdminAfterLogin() {
-  setTimeout(() => {
-    const stored = JSON.parse(localStorage.getItem('conectaPerfil') || '{}');
-    const emailInput = document.getElementById('loginEmail')?.value || '';
-    const detectedRole = resolveAdminRole(stored.correo || emailInput);
-
-    if (!detectedRole) return;
-
-    localStorage.setItem('conectaPerfil', JSON.stringify({
-      ...stored,
-      correo: stored.correo || emailInput,
-      rol: detectedRole
-    }));
-
-    goAdminPanel();
-  }, 700);
+  [250, 800, 1600, 2800, 4200].forEach(delay => {
+    setTimeout(forceAdminPanel, delay);
+  });
 }
 
 function protectAdminActions() {
   document.addEventListener('click', event => {
-    const button = event.target.closest('[data-superadmin-only]');
-    if (!button) return;
-
-    const role = getCurrentAdminRole();
-
-    if (role !== 'Superadmin') {
+    const adminOnly = event.target.closest('[data-superadmin-only]');
+    if (adminOnly && getCurrentAdminRole() !== 'Superadmin') {
       event.preventDefault();
+      event.stopPropagation();
       alert('Esta opción solo está disponible para Superadmin.');
+      return;
     }
-  });
+
+    const nav = event.target.closest('[data-go]');
+    if (!nav || !isAdminUser()) return;
+
+    const destination = nav.dataset.go;
+    const blockedForAdmin = ['homeScreen', 'categoriesScreen', 'reportInfoScreen', 'locationScreen', 'evidenceScreen', 'confirmScreen', 'supportScreen'];
+
+    if (blockedForAdmin.includes(destination)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      goAdminPanel();
+    }
+  }, true);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+function keepAdminOnAdminPanel() {
+  setInterval(() => {
+    if (!isAdminUser()) return;
+
+    const active = document.querySelector('.screen.active');
+    const allowed = ['adminScreen', 'trackingScreen', 'mapScreen', 'notificationsScreen', 'profileScreen'];
+
+    if (active && !allowed.includes(active.id)) {
+      goAdminPanel();
+    }
+  }, 1200);
+}
+
+window.resolveAdminRole = resolveAdminRole;
+window.isAdminUser = isAdminUser;
+window.getCurrentAdminRole = getCurrentAdminRole;
+window.goAdminPanel = goAdminPanel;
+window.applyAdminPanelInfo = applyAdminPanelInfo;
+window.forceAdminPanel = forceAdminPanel;
+
+window.addEventListener('load', () => {
   const loginForm = document.getElementById('loginForm');
   const registerBtn = document.getElementById('registerBtn');
 
@@ -107,8 +160,9 @@ document.addEventListener('DOMContentLoaded', () => {
   registerBtn?.addEventListener('click', activateAdminAfterLogin);
 
   protectAdminActions();
+  keepAdminOnAdminPanel();
 
   if (isAdminUser()) {
-    applyAdminPanelInfo();
+    forceAdminPanel();
   }
 });
