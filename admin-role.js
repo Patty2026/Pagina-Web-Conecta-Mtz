@@ -67,3 +67,48 @@ window.isAdminUser = isAdminUser;
 window.getCurrentAdminRole = getCurrentAdminRole;
 window.goAdminPanel = goAdminPanel;
 window.applyAdminPanelInfo = applyAdminPanelInfo;
+function activateAdminAfterLogin() {
+  setTimeout(() => {
+    const stored = JSON.parse(localStorage.getItem('conectaPerfil') || '{}');
+    const emailInput = document.getElementById('loginEmail')?.value || '';
+    const detectedRole = resolveAdminRole(stored.correo || emailInput);
+
+    if (!detectedRole) return;
+
+    localStorage.setItem('conectaPerfil', JSON.stringify({
+      ...stored,
+      correo: stored.correo || emailInput,
+      rol: detectedRole
+    }));
+
+    goAdminPanel();
+  }, 700);
+}
+
+function protectAdminActions() {
+  document.addEventListener('click', event => {
+    const button = event.target.closest('[data-superadmin-only]');
+    if (!button) return;
+
+    const role = getCurrentAdminRole();
+
+    if (role !== 'Superadmin') {
+      event.preventDefault();
+      alert('Esta opción solo está disponible para Superadmin.');
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const loginForm = document.getElementById('loginForm');
+  const registerBtn = document.getElementById('registerBtn');
+
+  loginForm?.addEventListener('submit', activateAdminAfterLogin);
+  registerBtn?.addEventListener('click', activateAdminAfterLogin);
+
+  protectAdminActions();
+
+  if (isAdminUser()) {
+    applyAdminPanelInfo();
+  }
+});
