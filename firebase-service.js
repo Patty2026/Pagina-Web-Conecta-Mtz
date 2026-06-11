@@ -180,8 +180,13 @@ export async function obtenerPerfilUsuario(userId) {
   return snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null;
 }
 export async function crearIncidencia(data) {
+  const year = new Date().getFullYear();
+  const consecutivo = await obtenerSiguienteConsecutivo('incidencias', `INC-${year}`);
+
   return addDoc(collection(db, 'incidencias'), {
     ...data,
+    idIncremental: consecutivo.idIncremental,
+    folio: consecutivo.codigo,
     estado: data.estado || 'Pendiente',
     fechaRegistro: serverTimestamp(),
     fechaActualizacion: serverTimestamp()
