@@ -18,7 +18,8 @@ import {
   updateDoc,
   doc,
   setDoc,
-  getDoc
+  getDoc,
+runTransaction
 } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
 
 const app = initializeApp(firebaseConfig);
@@ -35,7 +36,35 @@ function fechaMillis(valor) {
 function ordenarPorFechaDesc(a, b) {
   return fechaMillis(b.fechaRegistro) - fechaMillis(a.fechaRegistro);
 }
+async function obtenerSiguienteConsecutivo(nombreContador, prefijo) {
+  const contadorRef = doc(db, 'contadores', nombreContador);
 
+  const nuevoNumero = await runTransaction(db, async transaction => {
+    const contadorSnap = await transaction.get(contadorRef);
+
+    let ultimoId = 0;
+
+    if (contadorSnap.exists()) {
+      ultimoId = Number(contadorSnap.data().ultimoId || 0);
+    }
+
+    const siguienteId = ultimoId + 1;
+
+    transaction.set(contadorRef, {
+      ultimoId: siguienteId,
+      fechaActualizacion: serverTimestamp()
+    }, { merge: true });
+
+    return siguienteId;
+  });
+
+  const numeroFormateado = String(nuevoNumero).padStart(4, '0');
+
+  return {
+    idIncremental: nuevoNumero,
+    codigo: `${prefijo}-${numeroFormateado}`
+  };
+}
 function limpiarNombreArchivo(nombre = 'evidencia.jpg') {
   return nombre
     .normalize('NFD')
@@ -121,15 +150,29 @@ export function escucharSesion(callback) {
   return onAuthStateChanged(auth, callback);
 }
 
-export async function crearPerfilUsuario(userId, data) {
+ export async function crearPerfilUsuario(userId, data) {
   const usuarioRef = doc(db, 'usuarios', userId);
+  const perfilActual = await getDoc(usuarioRef);
+
+  const consecutivo = perfilActual.exists() && perfilActual.data().codigoUsuario
+    ? {
+        idIncremental: perfilActual.data().idIncremental,
+        codigo: perfilActual.data().codigoUsuario
+      }
+    : await obtenerSiguienteConsecutivo('usuarios', 'USR');
+
   return setDoc(usuarioRef, {
     ...data,
     uid: userId,
-    fechaRegistro: serverTimestamp(),
+    idIncremental: consecutivo.idIncremental,
+    codigoUsuario: consecutivo.codigo,
+    fechaRegistro: perfilActual.exists() && perfilActual.data().fechaRegistro
+      ? perfilActual.data().fechaRegistro
+      : serverTimestamp(),
     fechaActualizacion: serverTimestamp()
   }, { merge: true });
 }
+
 
 export async function obtenerPerfilUsuario(userId) {
   const usuarioRef = doc(db, 'usuarios', userId);
