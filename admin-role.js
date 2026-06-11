@@ -1,6 +1,9 @@
 const SUPERADMIN_EMAILS = ['adminp@gmail.com'];
 const ADMIN_EMAILS = ['adminb@gmail.com'];
 
+let adminGuardInterval = null;
+let adminSessionClosing = false;
+
 function normalizeEmail(email = '') {
   return String(email).trim().toLowerCase();
 }
@@ -32,10 +35,12 @@ function getAdminEmailCandidate() {
 }
 
 function isAdminUser() {
+  if (adminSessionClosing) return false;
   return resolveAdminRole(getAdminEmailCandidate()) !== null;
 }
 
 function getCurrentAdminRole() {
+  if (adminSessionClosing) return null;
   return resolveAdminRole(getAdminEmailCandidate());
 }
 
@@ -50,6 +55,26 @@ function saveAdminProfile(email, role) {
     nombre: stored.nombre || safeEmail.split('@')[0] || role,
     rol: role
   }));
+}
+
+function clearAdminProfile() {
+  adminSessionClosing = true;
+  localStorage.removeItem('conectaPerfil');
+  sessionStorage.removeItem('conectaPerfil');
+
+  if (adminGuardInterval) {
+    clearInterval(adminGuardInterval);
+    adminGuardInterval = null;
+  }
+}
+
+function goLoginScreen() {
+  document.querySelectorAll('.screen').forEach(screen => {
+    screen.classList.remove('active');
+  });
+
+  document.getElementById('loginScreen')?.classList.add('active');
+  window.scrollTo(0, 0);
 }
 
 function applyAdminPanelInfo() {
@@ -92,6 +117,8 @@ function goAdminPanel() {
 }
 
 function forceAdminPanel() {
+  if (adminSessionClosing) return false;
+
   const email = getAdminEmailCandidate();
   const role = resolveAdminRole(email);
 
@@ -103,12 +130,38 @@ function forceAdminPanel() {
 }
 
 function activateAdminAfterLogin() {
+  adminSessionClosing = false;
+
   [250, 800, 1600, 2800, 4200].forEach(delay => {
     setTimeout(forceAdminPanel, delay);
   });
 }
 
+async function handleAdminLogout(event) {
+  const logoutButton = event.target.closest('#logoutBtn, .logout, [data-admin-logout]');
+  if (!logoutButton) return;
+
+  if (!isAdminUser()) return;
+
+  event.preventDefault();
+  event.stopImmediatePropagation();
+
+  clearAdminProfile();
+
+  try {
+    if (window.firebaseSignOut) {
+      await window.firebaseSignOut();
+    }
+  } catch (error) {
+    console.warn('No se pudo cerrar sesión desde Firebase:', error);
+  }
+
+  goLoginScreen();
+}
+
 function protectAdminActions() {
+  document.addEventListener('click', handleAdminLogout, true);
+
   document.addEventListener('click', event => {
     const adminOnly = event.target.closest('[data-superadmin-only]');
     if (adminOnly && getCurrentAdminRole() !== 'Superadmin') {
@@ -122,7 +175,15 @@ function protectAdminActions() {
     if (!nav || !isAdminUser()) return;
 
     const destination = nav.dataset.go;
-    const blockedForAdmin = ['homeScreen', 'categoriesScreen', 'reportInfoScreen', 'locationScreen', 'evidenceScreen', 'confirmScreen', 'supportScreen'];
+    const blockedForAdmin = [
+      'homeScreen',
+      'categoriesScreen',
+      'reportInfoScreen',
+      'locationScreen',
+      'evidenceScreen',
+      'confirmScreen',
+      'supportScreen'
+    ];
 
     if (blockedForAdmin.includes(destination)) {
       event.preventDefault();
@@ -133,11 +194,19 @@ function protectAdminActions() {
 }
 
 function keepAdminOnAdminPanel() {
-  setInterval(() => {
+  if (adminGuardInterval) clearInterval(adminGuardInterval);
+
+  adminGuardInterval = setInterval(() => {
     if (!isAdminUser()) return;
 
     const active = document.querySelector('.screen.active');
-    const allowed = ['adminScreen', 'trackingScreen', 'mapScreen', 'notificationsScreen', 'profileScreen'];
+    const allowed = [
+      'adminScreen',
+      'trackingScreen',
+      'mapScreen',
+      'notificationsScreen',
+      'profileScreen'
+    ];
 
     if (active && !allowed.includes(active.id)) {
       goAdminPanel();
@@ -151,6 +220,7 @@ window.getCurrentAdminRole = getCurrentAdminRole;
 window.goAdminPanel = goAdminPanel;
 window.applyAdminPanelInfo = applyAdminPanelInfo;
 window.forceAdminPanel = forceAdminPanel;
+window.clearAdminProfile = clearAdminProfile;
 
 window.addEventListener('load', () => {
   const loginForm = document.getElementById('loginForm');
