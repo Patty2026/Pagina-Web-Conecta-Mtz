@@ -1,0 +1,86 @@
+/* =========================================================
+   ConectaMartínez - Optimización de carga inicial
+   ---------------------------------------------------------
+   Este archivo sobrescribe estilos pesados del splash sin
+   modificar el archivo principal styles.css.
+   Objetivo: que el logo cargue más rápido en celular y PC.
+   ========================================================= */
+
+/* Contenedor inicial más ligero */
+.splash {
+  gap: 10px;
+  padding: 22px 24px 28px;
+}
+
+/* Desactiva partículas animadas de fondo en la pantalla inicial */
+.splash::before {
+  animation: none !important;
+  opacity: 0.10;
+}
+
+/* Desactiva línea luminosa animada para reducir carga gráfica */
+.splash::after {
+  animation: none !important;
+  opacity: 0.45;
+  filter: blur(0.4px) drop-shadow(0 0 8px rgba(35, 214, 255, 0.45));
+}
+
+/* Logo optimizado: menos tamaño, menos filtros y sin pulso infinito */
+.splash .logo-mark {
+  width: min(82vw, 315px) !important;
+  height: min(82vw, 315px) !important;
+  margin: 6px 0 10px !important;
+  background: url('./logo-conecta-martinez.png') center / contain no-repeat;
+  animation: logoEntranceFast 0.42s ease both !important;
+  filter: drop-shadow(0 14px 22px rgba(0, 0, 0, 0.34)) !important;
+  transform: translateZ(0);
+  will-change: opacity, transform;
+}
+
+.splash-logo-wrap {
+  margin-top: 0 !important;
+  margin-bottom: 8px !important;
+}
+
+/* Botón principal sin resplandor animado infinito */
+.splash-start::before {
+  animation: none !important;
+  opacity: 0.32;
+  filter: blur(7px);
+}
+
+.splash-start,
+.splash-info-bar {
+  animation-duration: 0.45s !important;
+}
+
+@keyframes logoEntranceFast {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.94);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Respeta usuarios/dispositivos con reducción de movimiento */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Ajuste para computadora: logo grande pero sin carga excesiva */
+@media (min-width: 1024px) {
+  .splash .logo-mark {
+    width: min(36vw, 430px) !important;
+    height: min(36vw, 430px) !important;
+  }
+}
