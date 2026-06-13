@@ -132,6 +132,7 @@
     window.startRealtimeSync?.();
 
     if (isRealAdmin()) {
+      loadAdminOnlyModules();
       window.startAdminClean?.();
       window.restoreAdminProfileName?.();
 
