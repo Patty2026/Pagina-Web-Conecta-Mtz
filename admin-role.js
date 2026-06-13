@@ -70,8 +70,7 @@ function clearAdminProfile() {
     adminGuardInterval = null;
   }
 
-  window.stopAdminRealtimePanel?.();
-  window.stopAdminMap?.();
+  window.stopAdminClean?.();
 }
 
 function showScreen(screenId) {
@@ -120,30 +119,11 @@ async function loadAdminModules() {
   adminModulesLoaded = true;
 
   try {
-    const dashboard = await import('./admin-dashboard.js');
-    dashboard.startAdminRealtimePanel?.();
+    const admin = await import('./admin-clean.js?v=202606-admin-clean');
+    admin.startAdminClean?.();
   } catch (error) {
-    console.warn('No se pudo cargar admin-dashboard.js:', error);
-  }
-
-  try {
-    const superadmin = await import('./superadmin-module.js');
-    superadmin.startSuperadminModule?.();
-  } catch (error) {
-    console.warn('No se pudo cargar superadmin-module.js:', error);
-  }
-
-  try {
-    await import('./admin-map.js');
-  } catch (error) {
-    console.warn('No se pudo cargar admin-map.js:', error);
-  }
-
-  try {
-    await import('./admin-navigation-clean.js');
-    window.setupAdminNavigation?.();
-  } catch (error) {
-    console.warn('No se pudo cargar admin-navigation-clean.js:', error);
+    console.warn('No se pudo cargar admin-clean.js:', error);
+    adminModulesLoaded = false;
   }
 }
 
@@ -154,7 +134,6 @@ function goAdminPanel() {
   showScreen('adminScreen');
   applyAdminPanelInfo();
   loadAdminModules();
-  window.refreshCleanAdminNav?.();
 }
 
 function forceAdminPanel() {
