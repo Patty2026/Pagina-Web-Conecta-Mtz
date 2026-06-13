@@ -12,6 +12,7 @@ import {
 const SUPERADMIN_EMAIL = 'adminp@gmail.com';
 const BASIC_ADMIN_EMAIL = 'adminb@gmail.com';
 const DEFAULT_CENTER = [20.0700, -97.0600];
+
 let unsubscribeIncidents = null;
 let unsubscribeAdmins = null;
 let adminMap = null;
@@ -19,6 +20,7 @@ let markersLayer = null;
 let incidentCache = [];
 let adminCache = [];
 let currentStatus = 'Todos';
+let editingAdminEmail = null;
 
 function email() {
   return String(auth.currentUser?.email || '').toLowerCase();
@@ -61,10 +63,17 @@ function setText(id, value) {
   if (element) element.textContent = value;
 }
 
-function show(screenId) {
-  document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
-  document.getElementById(screenId)?.classList.add('active');
-  window.scrollTo(0, 0);
+function setField(id, value) {
+  const element = document.getElementById(id);
+  if (element) element.value = value || '';
+}
+
+function formatDate(value) {
+  if (!value) return 'Sin registro';
+  if (typeof value === 'string') return value;
+  if (typeof value.toDate === 'function') return value.toDate().toLocaleString('es-MX');
+  if (value.seconds) return new Date(value.seconds * 1000).toLocaleString('es-MX');
+  return 'Sin registro';
 }
 
 function ensurePanel() {
@@ -86,40 +95,92 @@ function ensurePanel() {
     </div>
 
     <section id="adminIncidentsTab" class="admin-clean-tab">
-      <div class="section-title"><h3>Resumen operativo</h3><small id="adminCleanSummary">Actualizando...</small></div>
+      <div class="section-title">
+        <h3>Resumen operativo</h3>
+        <small id="adminCleanSummary">Actualizando...</small>
+      </div>
       <div id="adminCleanIncidents" class="admin-live-list"><small>Cargando incidencias...</small></div>
     </section>
 
     <section id="adminManagersTab" class="admin-clean-tab" style="display:none" data-superadmin-only>
-      <div class="section-title"><h3>Administradores</h3><small>Gestión exclusiva de Superadmin</small></div>
-      <form id="adminCleanForm" class="app-form">
+      <div class="section-title">
+        <h3>Administradores</h3>
+        <small>CRUD exclusivo de Superadmin: crear, consultar, editar, activar/desactivar y auditar accesos.</small>
+      </div>
+
+      <form id="adminCleanForm" class="app-form admin-crud-form">
+        <input id="adminEditMode" type="hidden" value="create">
+
         <label>Correo</label>
         <input id="adminCleanEmail" type="email" placeholder="admin@correo.com" required>
+
         <label>Nombre</label>
-        <input id="adminCleanName" type="text" placeholder="Nombre del administrador">
+        <input id="adminCleanName" type="text" placeholder="Nombre del administrador" required>
+
+        <label>Teléfono</label>
+        <input id="adminCleanPhone" type="tel" placeholder="Ej. 2321234567">
+
         <label>Rol</label>
-        <select id="adminCleanRole"><option value="Administrador">Administrador básico</option><option value="Superadmin">Superadmin</option></select>
-        <button class="main-btn" type="submit">Guardar administrador</button>
+        <select id="adminCleanRole">
+          <option value="Administrador">Administrador básico</option>
+          <option value="Superadmin">Superadmin</option>
+        </select>
+
+        <label>Estado</label>
+        <select id="adminCleanStatus">
+          <option value="Activo">Activo</option>
+          <option value="Inactivo">Inactivo</option>
+        </select>
+
+        <label>Área o responsabilidad</label>
+        <input id="adminCleanArea" type="text" placeholder="Ej. Seguimiento de incidencias">
+
+        <label>Observaciones</label>
+        <textarea id="adminCleanNotes" placeholder="Notas internas del administrador"></textarea>
+
+        <div class="dual-actions">
+          <button class="main-btn" type="submit" id="adminCleanSubmit">Guardar administrador</button>
+          <button type="button" id="adminCleanCancelEdit">Limpiar</button>
+        </div>
+
         <small id="adminCleanMessage"></small>
       </form>
+
+      <div class="section-title">
+        <h3>Lista de administradores</h3>
+        <small id="adminManagersCount">0 registrados</small>
+      </div>
       <div id="adminCleanManagers" class="admin-live-list"><small>Cargando administradores...</small></div>
+
+      <div class="section-title">
+        <h3>Historial de accesos y acciones</h3>
+        <small>Último acceso y cambios realizados.</small>
+      </div>
+      <div id="adminAccessHistory" class="admin-live-list"><small>Sin historial todavía.</small></div>
     </section>
   `;
 
   const nav = adminScreen.querySelector('.bottom-nav');
   adminScreen.insertBefore(root, nav || null);
 
-  root.addEventListener('click', event => {
-    const tab = event.target.closest('[data-admin-tab]');
-    if (!tab) return;
+  root.addEventListener('click', handlePanelClick);
+  document.getElementById('adminCleanForm')?.addEventListener('submit', saveAdmin);
+  document.getElementById('adminCleanCancelEdit')?.addEventListener('click', clearAdminForm);
+  applyVisibility();
+}
+
+function handlePanelClick(event) {
+  const tab = event.target.closest('[data-admin-tab]');
+  if (tab) {
     if (tab.dataset.adminTab === 'admins' && !isSuperadmin()) return;
-    root.querySelectorAll('[data-admin-tab]').forEach(button => button.classList.toggle('active', button === tab));
+    document.querySelectorAll('[data-admin-tab]').forEach(button => button.classList.toggle('active', button === tab));
     document.getElementById('adminIncidentsTab').style.display = tab.dataset.adminTab === 'incidents' ? '' : 'none';
     document.getElementById('adminManagersTab').style.display = tab.dataset.adminTab === 'admins' ? '' : 'none';
-  });
+    return;
+  }
 
-  document.getElementById('adminCleanForm')?.addEventListener('submit', saveAdmin);
-  applyVisibility();
+  const edit = event.target.closest('[data-admin-edit]');
+  if (edit) loadAdminToForm(edit.dataset.adminEdit);
 }
 
 function applyVisibility() {
@@ -174,10 +235,17 @@ function renderMap(reports) {
   const map = initMap();
   if (!map || !markersLayer) return;
   markersLayer.clearLayers();
-  const visible = reports.filter(item => currentStatus === 'Todos' || normalizeStatus(item.estado) === currentStatus).map(item => ({ item, coords: coords(item) })).filter(item => item.coords);
+  const visible = reports
+    .filter(item => currentStatus === 'Todos' || normalizeStatus(item.estado) === currentStatus)
+    .map(item => ({ item, coords: coords(item) }))
+    .filter(item => item.coords);
+
   visible.forEach(({ item, coords }) => {
-    L.marker([coords.lat, coords.lng]).bindPopup(`<b>${item.folio || 'INC-SIN-ID'}</b><br>${item.tipo || item.categoria || 'Incidente'}<br>Estado: ${normalizeStatus(item.estado)}<br><a href="https://www.google.com/maps?q=${coords.lat},${coords.lng}" target="_blank">Abrir ubicación</a>`).addTo(markersLayer);
+    L.marker([coords.lat, coords.lng])
+      .bindPopup(`<b>${item.folio || 'INC-SIN-ID'}</b><br>${item.tipo || item.categoria || 'Incidente'}<br>Estado: ${normalizeStatus(item.estado)}<br><a href="https://www.google.com/maps?q=${coords.lat},${coords.lng}" target="_blank">Abrir ubicación</a>`)
+      .addTo(markersLayer);
   });
+
   const info = document.getElementById('mapInfoCard');
   if (info) info.innerHTML = `<span class="icon orange">🗺️</span><div><b>Mapa administrativo</b><small>${visible.length} ubicaciones visibles. Usa los filtros por estado.</small></div>`;
   if (visible.length) map.fitBounds(L.latLngBounds(visible.map(({ coords }) => [coords.lat, coords.lng])), { padding: [28, 28], maxZoom: 15 });
@@ -197,38 +265,159 @@ function subscribeAdmins() {
   if (unsubscribeAdmins || !isSuperadmin()) return;
   unsubscribeAdmins = onSnapshot(collection(db, 'administradores'), snapshot => {
     adminCache = snapshot.docs.map(docu => ({ id: docu.id, ...docu.data() }));
-    const list = document.getElementById('adminCleanManagers');
-    if (!list) return;
-    list.innerHTML = adminCache.length ? adminCache.map(item => `<div class="admin-live-item"><b>${item.nombre || item.correo}</b><small>${item.correo} · ${item.rol || 'Administrador'} · ${item.estado || 'Activo'} · Último acceso: ${item.ultimoAcceso || 'Sin registro'}</small><div class="dual-actions"><button data-admin-toggle="${item.correo}">${item.estado === 'Inactivo' ? 'Activar' : 'Desactivar'}</button><button data-admin-role="${item.correo}" data-role="${item.rol === 'Superadmin' ? 'Administrador' : 'Superadmin'}">Cambiar rol</button></div></div>`).join('') : '<small>No hay administradores registrados.</small>';
+    renderManagers();
+    renderAccessHistory();
   });
+}
+
+function renderManagers() {
+  const list = document.getElementById('adminCleanManagers');
+  if (!list) return;
+
+  setText('adminManagersCount', `${adminCache.length} registrado(s)`);
+
+  list.innerHTML = adminCache.length
+    ? adminCache.map(item => `
+      <div class="admin-live-item admin-crud-item">
+        <b>${item.nombre || item.correo}</b>
+        <small>${item.correo} · ${item.rol || 'Administrador'} · ${item.estado || 'Activo'}</small>
+        <small>Tel: ${item.telefono || 'Sin teléfono'} · Área: ${item.area || 'Sin área'}</small>
+        <small>Último acceso: ${formatDate(item.fechaUltimoAcceso || item.ultimoAcceso)}</small>
+        <div class="dual-actions">
+          <button type="button" data-admin-edit="${item.correo}">Editar</button>
+          <button type="button" data-admin-toggle="${item.correo}">${item.estado === 'Inactivo' ? 'Activar' : 'Desactivar'}</button>
+          <button type="button" data-admin-role="${item.correo}" data-role="${item.rol === 'Superadmin' ? 'Administrador' : 'Superadmin'}">Cambiar rol</button>
+        </div>
+      </div>`).join('')
+    : '<small>No hay administradores registrados.</small>';
+}
+
+function renderAccessHistory() {
+  const history = document.getElementById('adminAccessHistory');
+  if (!history) return;
+
+  history.innerHTML = adminCache.length
+    ? adminCache.map(item => `
+      <div class="admin-live-item">
+        <b>${item.correo}</b>
+        <small>Último acceso: ${formatDate(item.fechaUltimoAcceso || item.ultimoAcceso)}</small>
+        <small>Última actualización: ${formatDate(item.fechaActualizacion)}</small>
+      </div>`).join('')
+    : '<small>Sin historial todavía.</small>';
+}
+
+function loadAdminToForm(adminEmail) {
+  const item = adminCache.find(admin => admin.correo === adminEmail);
+  if (!item) return;
+
+  editingAdminEmail = item.correo;
+  setField('adminEditMode', 'edit');
+  setField('adminCleanEmail', item.correo);
+  document.getElementById('adminCleanEmail').readOnly = true;
+  setField('adminCleanName', item.nombre);
+  setField('adminCleanPhone', item.telefono);
+  setField('adminCleanRole', item.rol || 'Administrador');
+  setField('adminCleanStatus', item.estado || 'Activo');
+  setField('adminCleanArea', item.area);
+  setField('adminCleanNotes', item.observaciones);
+  setText('adminCleanSubmit', 'Actualizar administrador');
+  setText('adminCleanMessage', `Editando a ${item.correo}`);
+}
+
+function clearAdminForm() {
+  editingAdminEmail = null;
+  const form = document.getElementById('adminCleanForm');
+  form?.reset();
+  const emailInput = document.getElementById('adminCleanEmail');
+  if (emailInput) emailInput.readOnly = false;
+  setField('adminEditMode', 'create');
+  setText('adminCleanSubmit', 'Guardar administrador');
+  setText('adminCleanMessage', '');
 }
 
 async function saveAdmin(event) {
   event.preventDefault();
   if (!isSuperadmin()) return;
+
   const adminEmail = String(document.getElementById('adminCleanEmail')?.value || '').trim().toLowerCase();
   const adminName = document.getElementById('adminCleanName')?.value?.trim() || adminEmail.split('@')[0];
   const adminRole = document.getElementById('adminCleanRole')?.value || 'Administrador';
-  await setDoc(doc(db, 'administradores', safeEmailId(adminEmail)), { correo: adminEmail, nombre: adminName, rol: adminRole, estado: 'Activo', creadoPor: email(), fechaActualizacion: serverTimestamp(), ultimoAcceso: 'Sin registro' }, { merge: true });
-  await addDoc(collection(db, 'auditoria_admin'), { accion: 'guardar_administrador', correo: adminEmail, rol: adminRole, ejecutadoPor: email(), fecha: serverTimestamp() });
-  setText('adminCleanMessage', 'Administrador guardado correctamente.');
-  event.target.reset();
+  const adminStatus = document.getElementById('adminCleanStatus')?.value || 'Activo';
+  const phone = document.getElementById('adminCleanPhone')?.value?.trim() || '';
+  const area = document.getElementById('adminCleanArea')?.value?.trim() || '';
+  const notes = document.getElementById('adminCleanNotes')?.value?.trim() || '';
+  const mode = editingAdminEmail ? 'editar_administrador' : 'crear_administrador';
+
+  await setDoc(doc(db, 'administradores', safeEmailId(adminEmail)), {
+    correo: adminEmail,
+    nombre: adminName,
+    telefono: phone,
+    rol: adminRole,
+    estado: adminStatus,
+    area,
+    observaciones: notes,
+    creadoPor: email(),
+    fechaActualizacion: serverTimestamp(),
+    ultimoAcceso: adminCache.find(item => item.correo === adminEmail)?.ultimoAcceso || 'Sin registro'
+  }, { merge: true });
+
+  await addDoc(collection(db, 'auditoria_admin'), {
+    accion: mode,
+    correo: adminEmail,
+    rol: adminRole,
+    estado: adminStatus,
+    ejecutadoPor: email(),
+    fecha: serverTimestamp()
+  });
+
+  setText('adminCleanMessage', editingAdminEmail ? 'Administrador actualizado correctamente.' : 'Administrador creado correctamente.');
+  clearAdminForm();
 }
 
 document.addEventListener('click', async event => {
   const toggle = event.target.closest('[data-admin-toggle]');
   const roleButton = event.target.closest('[data-admin-role]');
   if (!isSuperadmin() || (!toggle && !roleButton)) return;
+
   const adminEmail = toggle?.dataset.adminToggle || roleButton?.dataset.adminRole;
   const current = adminCache.find(item => item.correo === adminEmail);
-  const changes = toggle ? { estado: current?.estado === 'Inactivo' ? 'Activo' : 'Inactivo' } : { rol: roleButton.dataset.role };
-  await updateDoc(doc(db, 'administradores', safeEmailId(adminEmail)), { ...changes, fechaActualizacion: serverTimestamp() });
+  const changes = toggle
+    ? { estado: current?.estado === 'Inactivo' ? 'Activo' : 'Inactivo' }
+    : { rol: roleButton.dataset.role };
+
+  await updateDoc(doc(db, 'administradores', safeEmailId(adminEmail)), {
+    ...changes,
+    fechaActualizacion: serverTimestamp()
+  });
+
+  await addDoc(collection(db, 'auditoria_admin'), {
+    accion: toggle ? 'cambiar_estado_administrador' : 'cambiar_rol_administrador',
+    correo: adminEmail,
+    cambios: changes,
+    ejecutadoPor: email(),
+    fecha: serverTimestamp()
+  });
 });
 
 async function syncAdminProfile() {
   if (!isAdmin() || !auth.currentUser) return;
-  await crearPerfilUsuario(auth.currentUser.uid, { correo: email(), nombre: email().split('@')[0], rol: role(), estado: 'Activo', accesoAdministrativo: true, fechaUltimoAcceso: new Date().toISOString() });
-  await setDoc(doc(db, 'administradores', safeEmailId(email())), { correo: email(), nombre: email().split('@')[0], rol: role(), estado: 'Activo', ultimoAcceso: new Date().toLocaleString('es-MX'), fechaUltimoAcceso: serverTimestamp() }, { merge: true });
+  await crearPerfilUsuario(auth.currentUser.uid, {
+    correo: email(),
+    nombre: email().split('@')[0],
+    rol: role(),
+    estado: 'Activo',
+    accesoAdministrativo: true,
+    fechaUltimoAcceso: new Date().toISOString()
+  });
+
+  await setDoc(doc(db, 'administradores', safeEmailId(email())), {
+    correo: email(),
+    nombre: email().split('@')[0],
+    rol: role(),
+    estado: 'Activo',
+    ultimoAcceso: new Date().toLocaleString('es-MX'),
+    fechaUltimoAcceso: serverTimestamp()
+  }, { merge: true });
 }
 
 export function startAdminClean() {
