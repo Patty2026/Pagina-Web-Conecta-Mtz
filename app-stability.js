@@ -11,7 +11,8 @@
     './navigation-history.js',
     './admin-dashboard.js',
     './admin-map.js',
-    './superadmin-module.js'
+    './superadmin-module.js',
+    './admin-panel-summary-clean.js'
   ];
 
   function hasScript(src) {
@@ -51,6 +52,7 @@
       setTimeout(() => {
         window.startAdminMap?.();
         window.startSuperadminModule?.();
+        window.cleanAdminPanelSummary?.();
       }, 450);
     });
   }
@@ -65,6 +67,7 @@
       if (adminScreen?.classList.contains('active')) {
         window.startAdminRealtimePanel?.();
         window.startSuperadminModule?.();
+        window.cleanAdminPanelSummary?.();
       }
 
       if (mapScreen?.classList.contains('active')) {
