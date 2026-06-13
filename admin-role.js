@@ -1,5 +1,6 @@
 const SUPERADMIN_EMAILS = ['adminp@gmail.com'];
 const ADMIN_EMAILS = ['adminb@gmail.com'];
+const ALL_ADMIN_EMAILS = [...SUPERADMIN_EMAILS, ...ADMIN_EMAILS];
 
 let adminGuardInterval = null;
 let adminSessionClosing = false;
@@ -32,8 +33,18 @@ function getLoginEmail() {
 }
 
 function getAdminEmailCandidate() {
+  const loginEmail = normalizeEmail(getLoginEmail());
+
+  // Prioridad al correo escrito en el login. Esto evita que una sesión anterior
+  // de ciudadano/apoyo bloquee el acceso del administrador.
+  if (resolveAdminRole(loginEmail)) return loginEmail;
+
   const stored = getStoredProfile();
-  return stored.correo || stored.email || getLoginEmail();
+  const storedEmail = normalizeEmail(stored.correo || stored.email || '');
+
+  if (resolveAdminRole(storedEmail)) return storedEmail;
+
+  return loginEmail || storedEmail;
 }
 
 function isAdminUser() {
@@ -49,19 +60,24 @@ function getCurrentAdminRole() {
 function saveAdminProfile(email, role) {
   const stored = getStoredProfile();
   const safeEmail = normalizeEmail(email || stored.correo || stored.email || getLoginEmail());
+  const currentStoredEmail = normalizeEmail(stored.correo || stored.email || '');
+  const keepStoredName = currentStoredEmail === safeEmail && stored.nombre;
 
   localStorage.setItem('conectaPerfil', JSON.stringify({
     ...stored,
     correo: safeEmail,
     email: safeEmail,
-    nombre: stored.nombre || safeEmail.split('@')[0] || role,
-    rol: role
+    nombre: keepStoredName ? stored.nombre : (safeEmail.split('@')[0] || role),
+    rol: role,
+    accesoAdministrativo: true,
+    estado: 'Activo'
   }));
 }
 
 function clearAdminProfile() {
   adminSessionClosing = true;
   adminAutoRedirectEnabled = false;
+  adminModulesLoaded = false;
   localStorage.removeItem('conectaPerfil');
   sessionStorage.removeItem('conectaPerfil');
 
@@ -70,6 +86,7 @@ function clearAdminProfile() {
     adminGuardInterval = null;
   }
 
+  window.stopSuperadminEnhancements?.();
   window.stopAdminClean?.();
 }
 
@@ -119,8 +136,17 @@ async function loadAdminModules() {
   adminModulesLoaded = true;
 
   try {
-    const admin = await import('./admin-clean.js?v=202606-admin-clean-v2');
+    const admin = await import('./admin-clean.js?v=202606-admin-access-fix');
     admin.startAdminClean?.();
+
+    if (getCurrentAdminRole() === 'Superadmin') {
+      try {
+        const superadmin = await import('./superadmin-enhancements.js?v=202606-admin-access-fix');
+        superadmin.startSuperadminEnhancements?.();
+      } catch (error) {
+        console.warn('No se pudo cargar superadmin-enhancements.js:', error);
+      }
+    }
   } catch (error) {
     console.warn('No se pudo cargar admin-clean.js:', error);
     adminModulesLoaded = false;
@@ -145,16 +171,25 @@ function forceAdminPanel() {
   if (!role) return false;
 
   saveAdminProfile(email, role);
+  adminAutoRedirectEnabled = true;
   goAdminPanel();
   return true;
 }
 
 function activateAdminAfterLogin() {
   adminSessionClosing = false;
+
+  const loginRole = resolveAdminRole(getLoginEmail());
+  if (!loginRole) {
+    adminAutoRedirectEnabled = false;
+    return;
+  }
+
   adminModulesLoaded = false;
   adminAutoRedirectEnabled = true;
+  saveAdminProfile(getLoginEmail(), loginRole);
 
-  [250, 800, 1600, 2800, 4200].forEach(delay => {
+  [150, 500, 1000, 1800, 3000, 5000].forEach(delay => {
     setTimeout(forceAdminPanel, delay);
   });
 }
@@ -252,6 +287,7 @@ window.goAdminPanel = goAdminPanel;
 window.applyAdminPanelInfo = applyAdminPanelInfo;
 window.forceAdminPanel = forceAdminPanel;
 window.clearAdminProfile = clearAdminProfile;
+window.saveAdminProfile = saveAdminProfile;
 window.loadAdminModules = loadAdminModules;
 window.goSplashScreen = goSplashScreen;
 window.goLoginScreen = goLoginScreen;
@@ -266,8 +302,10 @@ window.addEventListener('load', () => {
   protectAdminActions();
   keepAdminOnAdminPanel();
 
+  // Si ya existe un perfil administrativo guardado, intentar recuperar el panel.
+  // Ya no se queda detenido en Splash.
   if (isAdminUser()) {
-    adminAutoRedirectEnabled = false;
-    goSplashScreen();
+    adminAutoRedirectEnabled = true;
+    setTimeout(forceAdminPanel, 600);
   }
 });
