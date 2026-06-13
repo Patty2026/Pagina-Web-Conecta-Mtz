@@ -1,8 +1,23 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
+
     function signedIn() {
       return request.auth != null;
+    }
+
+    function authEmail() {
+      return signedIn() && request.auth.token.email != null
+        ? lower(request.auth.token.email)
+        : '';
+    }
+
+    function isAdminEmail() {
+      return authEmail() in [
+        'adminp@gmail.com',
+        'adminb@gmail.com'
+      ];
     }
 
     function userProfile() {
@@ -15,8 +30,15 @@ service cloud.firestore {
         : '';
     }
 
+    function isSuperadmin() {
+      return authEmail() == 'adminp@gmail.com'
+        || userRole().matches('.*superadmin.*');
+    }
+
     function isAdmin() {
-      return userRole().matches('.*administrador.*');
+      return isAdminEmail()
+        || userRole().matches('.*administrador.*')
+        || userRole().matches('.*superadmin.*');
     }
 
     function isSupport() {
@@ -28,15 +50,17 @@ service cloud.firestore {
     }
 
     match /usuarios/{userId} {
-      allow create: if signedIn() && isOwner(userId);
+      allow create: if signedIn() && (isOwner(userId) || isAdmin());
       allow read: if signedIn() && (isOwner(userId) || isAdmin());
       allow update: if signedIn() && (isOwner(userId) || isAdmin());
       allow delete: if signedIn() && isAdmin();
     }
 
     match /incidencias/{incidenciaId} {
-      allow create: if signedIn()
-        && request.resource.data.idCiudadano == request.auth.uid;
+      allow create: if signedIn() && (
+        request.resource.data.idCiudadano == request.auth.uid ||
+        isAdmin()
+      );
 
       allow read: if signedIn() && (
         resource.data.idCiudadano == request.auth.uid ||
@@ -54,6 +78,23 @@ service cloud.firestore {
         resource.data.idCiudadano == request.auth.uid ||
         isAdmin()
       );
+    }
+
+    match /contadores/{contadorId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn();
+      allow delete: if signedIn() && isAdmin();
+    }
+
+    match /administradores/{adminId} {
+      allow read: if signedIn() && isAdmin();
+      allow create, update, delete: if signedIn() && isSuperadmin();
+    }
+
+    match /auditoria_admin/{logId} {
+      allow read: if signedIn() && isSuperadmin();
+      allow create: if signedIn() && isSuperadmin();
+      allow update, delete: if false;
     }
   }
 }
