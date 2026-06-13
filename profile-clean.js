@@ -5,11 +5,15 @@ import {
   setDoc,
   serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
+import {
+  onAuthStateChanged
+} from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
 
 let profileLoadedOnceForUid = null;
 let userIsEditingProfile = false;
 let profileSaving = false;
-let authReady = false;
+let authUserCache = null;
+let authStarted = false;
 
 function setText(id, value) {
   const element = document.getElementById(id);
@@ -52,8 +56,20 @@ function validateProfileData(data) {
   return '';
 }
 
+function startAuthListener() {
+  if (authStarted) return;
+  authStarted = true;
+
+  onAuthStateChanged(auth, user => {
+    authUserCache = user || null;
+    if (user) {
+      setTimeout(() => loadProfile({ forceFill: false }), 150);
+    }
+  });
+}
+
 function getRealUser() {
-  return auth.currentUser;
+  return auth.currentUser || authUserCache || null;
 }
 
 function removeDuplicateDataPanels() {
@@ -166,16 +182,21 @@ function openProfilePanel(panelId) {
 }
 
 async function waitForAuthUser() {
-  if (auth.currentUser) return auth.currentUser;
+  startAuthListener();
+
+  if (getRealUser()) return getRealUser();
 
   return new Promise(resolve => {
-    const started = Date.now();
-    const timer = setInterval(() => {
-      if (auth.currentUser || Date.now() - started > 5000) {
-        clearInterval(timer);
-        resolve(auth.currentUser);
-      }
-    }, 120);
+    const unsubscribe = onAuthStateChanged(auth, user => {
+      authUserCache = user || null;
+      unsubscribe();
+      resolve(user || null);
+    });
+
+    setTimeout(() => {
+      unsubscribe();
+      resolve(getRealUser());
+    }, 7000);
   });
 }
 
@@ -225,11 +246,11 @@ async function loadProfile({ forceFill = false } = {}) {
 async function saveProfile(event) {
   event.preventDefault();
 
-  const user = getRealUser() || await waitForAuthUser();
+  const user = await waitForAuthUser();
   const message = document.getElementById('profileCleanMessage');
 
   if (!user) {
-    if (message) message.textContent = 'Primero inicia sesión para guardar tus datos.';
+    if (message) message.textContent = 'No se detectó la sesión activa. Cierra sesión e inicia nuevamente.';
     return;
   }
 
@@ -290,6 +311,7 @@ async function saveProfile(event) {
 }
 
 export async function startProfileClean() {
+  startAuthListener();
   ensureProfileDataPanel();
   await loadProfile();
 }
