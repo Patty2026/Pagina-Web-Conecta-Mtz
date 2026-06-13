@@ -1,48 +1,107 @@
 /* =========================================================
-   ConectaMartínez - Núcleo ligero de estabilidad
+   ConectaMartínez - Núcleo limpio de estabilidad por rol
    ---------------------------------------------------------
-   Carga únicamente los módulos consolidados para mantener la
-   app fluida, ordenada y sin duplicar paneles administrativos.
+   Evita contaminación entre Ciudadano, Apoyo comunitario,
+   Administrador básico y Superadmin.
    ========================================================= */
 
 (function () {
-  const CLEAN_MODULES = [
-    './navigation-history.js',
-    './admin-clean.js',
-    './profile-clean.js'
-  ];
+  const ADMIN_EMAILS = ['adminp@gmail.com', 'adminb@gmail.com'];
+
+  function normalize(value = '') {
+    return String(value).trim().toLowerCase();
+  }
+
+  function getStoredProfile() {
+    try {
+      return JSON.parse(localStorage.getItem('conectaPerfil') || '{}');
+    } catch {
+      return {};
+    }
+  }
+
+  function getCurrentEmail() {
+    const profile = getStoredProfile();
+    return normalize(profile.correo || profile.email || document.getElementById('loginEmail')?.value || '');
+  }
+
+  function getCurrentRole() {
+    const profile = getStoredProfile();
+    return normalize(profile.rol || '');
+  }
+
+  function isRealAdmin() {
+    const email = getCurrentEmail();
+    const role = getCurrentRole();
+
+    return ADMIN_EMAILS.includes(email)
+      || role.includes('superadmin')
+      || role.includes('administrador');
+  }
+
+  function isSupportOrCitizen() {
+    const role = getCurrentRole();
+    const email = getCurrentEmail();
+
+    if (ADMIN_EMAILS.includes(email)) return false;
+
+    return role.includes('apoyo')
+      || role.includes('ciudadano')
+      || !role.includes('administrador');
+  }
 
   function hasScript(src) {
-    return Array.from(document.scripts).some(script => script.src.includes(src.replace('./', '')));
+    return Array.from(document.scripts).some(script =>
+      script.src.includes(src.replace('./', ''))
+    );
   }
 
   function loadScript(src, type = 'text/javascript') {
     if (hasScript(src)) return;
 
     const script = document.createElement('script');
-    script.src = `${src}?v=202606-clean-core`;
+    script.src = `${src}?v=202606-role-clean`;
     script.type = type;
     script.defer = true;
     document.body.appendChild(script);
   }
 
-  function loadCleanModules() {
-    CLEAN_MODULES.forEach(src => {
-      const isModule = src.includes('admin-clean') || src.includes('profile-clean');
-      loadScript(src, isModule ? 'module' : 'text/javascript');
-    });
+  function loadBaseModules() {
+    loadScript('./navigation-history.js');
+    loadScript('./profile-clean.js', 'module');
   }
 
-  function isAdminSession() {
-    return Boolean(window.isAdminUser?.());
+  function loadAdminOnlyModules() {
+    if (!isRealAdmin()) return;
+    loadScript('./admin-clean.js', 'module');
   }
 
-  function runCleanModules() {
-    window.startProfileClean?.();
+  function removeAdminViewsForNonAdmin() {
+    if (!isSupportOrCitizen()) return;
 
-    if (isAdminSession()) {
-      window.startAdminClean?.();
-    }
+    document.querySelectorAll(
+      '#adminCleanRoot, #adminRealtimePanel, #adminWindowsRoot, #adminMapPanel, #adminManagersWindow, .admin-window-tabs, .admin-map-panel, .admin-realtime-panel'
+    ).forEach(element => element.remove());
+
+    const adminScreen = document.getElementById('adminScreen');
+    if (adminScreen) adminScreen.classList.remove('active');
+  }
+
+  function fixSupportNavigation() {
+    if (!isSupportOrCitizen()) return;
+
+    const active = document.querySelector('.screen.active');
+    if (!active || active.id !== 'adminScreen') return;
+
+    const target = getCurrentRole().includes('apoyo')
+      ? document.getElementById('supportScreen')
+      : document.getElementById('homeScreen');
+
+    document.querySelectorAll('.screen').forEach(screen =>
+      screen.classList.remove('active')
+    );
+
+    target?.classList.add('active');
   }
 
   function disableUnimplementedSocialButtons() {
@@ -53,51 +112,40 @@
     });
   }
 
-  function preventAdminDuplicates() {
-    if (!isAdminSession()) return;
+  function runModules() {
+    window.startProfileClean?.();
 
-    const adminScreen = document.getElementById('adminScreen');
-    if (!adminScreen) return;
-
-    adminScreen.querySelectorAll('#adminRealtimePanel, #adminWindowsRoot').forEach(element => {
-      element.remove();
-    });
-
-    const cleanRoot = document.getElementById('adminCleanRoot');
-    if (cleanRoot) cleanRoot.style.display = '';
+    if (isRealAdmin()) {
+      window.startAdminClean?.();
+    } else {
+      removeAdminViewsForNonAdmin();
+      fixSupportNavigation();
+    }
   }
 
   function afterNavigation() {
-    setTimeout(() => {
-      preventAdminDuplicates();
-      runCleanModules();
-    }, 350);
+    setTimeout(runModules, 300);
   }
 
   function watchNavigation() {
     document.addEventListener('click', event => {
-      if (event.target.closest('[data-go], .profile-toggle')) {
+      if (event.target.closest('[data-go], .profile-toggle, .bottom-nav button')) {
         afterNavigation();
       }
     });
   }
 
-  function keepAlive() {
-    setInterval(() => {
-      preventAdminDuplicates();
-      runCleanModules();
-    }, 2500);
+  function keepCleanByRole() {
+    setInterval(runModules, 1800);
   }
 
   window.addEventListener('load', () => {
-    loadCleanModules();
+    loadBaseModules();
+    loadAdminOnlyModules();
     disableUnimplementedSocialButtons();
     watchNavigation();
-    keepAlive();
+    keepCleanByRole();
 
-    setTimeout(() => {
-      preventAdminDuplicates();
-      runCleanModules();
-    }, 1200);
+    setTimeout(runModules, 1000);
   });
 })();
