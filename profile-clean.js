@@ -51,6 +51,22 @@ function validateProfileData(data) {
   return '';
 }
 
+function removeDuplicateDataPanels() {
+  const profileScreen = document.getElementById('profileScreen');
+  if (!profileScreen) return;
+
+  const buttons = Array.from(profileScreen.querySelectorAll('[data-profile-panel="profileDataPanel"], [data-profile-panel="panelData"]'));
+  const panels = Array.from(profileScreen.querySelectorAll('#profileDataPanel, #panelData'));
+
+  buttons.forEach((button, index) => {
+    if (index > 0) button.remove();
+  });
+
+  panels.forEach(panel => {
+    if (panel.id === 'panelData') panel.remove();
+  });
+}
+
 function ensureProfileDataPanel() {
   const profileScreen = document.getElementById('profileScreen');
   if (!profileScreen) return;
@@ -58,19 +74,19 @@ function ensureProfileDataPanel() {
   const oldEditor = document.getElementById('profileCleanForm')?.closest('.profile-editor-card');
   if (oldEditor) oldEditor.remove();
 
+  removeDuplicateDataPanels();
+
+  const menu = profileScreen.querySelector('.menu-list');
   let panelButton = profileScreen.querySelector('[data-profile-panel="profileDataPanel"]');
   let panel = document.getElementById('profileDataPanel');
 
-  if (!panelButton) {
-    const menu = profileScreen.querySelector('.menu-list');
-    if (menu) {
-      panelButton = document.createElement('button');
-      panelButton.className = 'profile-toggle';
-      panelButton.type = 'button';
-      panelButton.dataset.profilePanel = 'profileDataPanel';
-      panelButton.innerHTML = 'Mis datos <span>›</span>';
-      menu.insertBefore(panelButton, menu.firstChild);
-    }
+  if (!panelButton && menu) {
+    panelButton = document.createElement('button');
+    panelButton.className = 'profile-toggle';
+    panelButton.type = 'button';
+    panelButton.dataset.profilePanel = 'profileDataPanel';
+    panelButton.innerHTML = 'Mis datos <span>›</span>';
+    menu.insertBefore(panelButton, menu.firstChild);
   }
 
   if (!panel) {
@@ -130,15 +146,16 @@ function ensureProfileDataPanel() {
 }
 
 function openProfilePanel(panelId) {
-  const panel = document.getElementById(panelId);
+  const targetPanelId = panelId === 'panelData' ? 'profileDataPanel' : panelId;
+  const panel = document.getElementById(targetPanelId);
   if (!panel) return;
 
   document.querySelectorAll('#profileScreen .profile-panel').forEach(item => {
-    item.classList.toggle('open', item.id === panelId);
-    item.style.display = item.id === panelId ? 'block' : 'none';
+    item.classList.toggle('open', item.id === targetPanelId);
+    item.style.display = item.id === targetPanelId ? 'block' : 'none';
   });
 
-  if (panelId === 'profileDataPanel') {
+  if (targetPanelId === 'profileDataPanel') {
     loadProfile({ forceFill: !userIsEditingProfile });
   }
 }
@@ -258,6 +275,7 @@ document.addEventListener('click', event => {
     const panelId = toggle.dataset.profilePanel;
     if (panelId === 'profileDataPanel' || panelId === 'panelData') {
       event.preventDefault();
+      event.stopPropagation();
       setTimeout(() => openProfilePanel('profileDataPanel'), 50);
     }
   }
