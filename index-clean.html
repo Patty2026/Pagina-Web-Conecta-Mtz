@@ -275,7 +275,7 @@
     </section>
 
     <section class="screen map" id="mapScreen">
-      <button class="back" data-go="homeScreen">‹</button>
+      <button class="back" data-go="adminScreen">‹</button>
       <h2>Mapa</h2>
       <input class="map-search" id="mapSearchInput" placeholder="Buscar calle, colonia o reporte" />
       <div id="reportsMap" class="reports-map"></div>
@@ -283,11 +283,9 @@
         <span class="icon orange">🗺️</span>
         <div><b>Mapa de incidencias</b><small>Consulta reportes cercanos y toca un marcador para ver detalles.</small></div>
       </div>
-      <nav class="bottom-nav">
-        <button data-go="homeScreen">Inicio</button>
-        <button data-go="trackingScreen">Reportes</button>
+      <nav class="bottom-nav admin-clean-nav">
+        <button data-go="adminScreen">Panel</button>
         <button class="active" data-go="mapScreen">Mapa</button>
-        <button data-go="notificationsScreen">Alertas</button>
         <button data-go="profileScreen">Perfil</button>
       </nav>
     </section>
@@ -354,28 +352,25 @@
         <button id="logoutBtn" class="logout" type="button">Cerrar sesión</button>
       </div>
 
-      <nav class="bottom-nav">
-        <button data-go="homeScreen">Inicio</button>
-        <button data-go="trackingScreen">Reportes</button>
+      <nav class="bottom-nav admin-clean-nav">
+        <button data-go="adminScreen">Panel</button>
         <button data-go="mapScreen">Mapa</button>
-        <button data-go="notificationsScreen">Alertas</button>
         <button class="active" data-go="profileScreen">Perfil</button>
       </nav>
     </section>
 
-    <!-- Admin ligero: los módulos JS agregan mapa, incidentes y administradores -->
+    <!-- Admin ligero: los módulos JS agregan incidentes y administradores -->
     <section class="screen admin" id="adminScreen">
       <header class="app-header">
         <div>
           <b id="adminRoleTitle">Administrador</b>
           <small id="adminRoleDescription">Panel administrativo en tiempo real.</small>
         </div>
-        <button class="bell" data-go="notificationsScreen">🔔</button>
       </header>
 
       <div class="status-banner">
         Panel Administrativo<br>
-        <small>Incidentes, ubicaciones y administradores se cargan desde Firebase.</small>
+        <small>Resumen operativo conectado a Firebase.</small>
       </div>
 
       <div class="support-stats">
@@ -384,11 +379,9 @@
         <div><b id="adminResolvedCount">0</b><small>Resueltos</small></div>
       </div>
 
-      <nav class="bottom-nav">
-        <button class="active" data-go="adminScreen">Admin</button>
-        <button data-go="trackingScreen">Reportes</button>
+      <nav class="bottom-nav admin-clean-nav">
+        <button class="active" data-go="adminScreen">Panel</button>
         <button data-go="mapScreen">Mapa</button>
-        <button data-go="notificationsScreen">Alertas</button>
         <button data-go="profileScreen">Perfil</button>
       </nav>
     </section>
@@ -396,8 +389,8 @@
   </main>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script type="module" src="./script.js?v=202606-clean"></script>
-  <script src="./admin-role.js?v=202606-clean"></script>
-  <script src="./app-stability.js?v=202606-clean"></script>
+  <script type="module" src="./script.js?v=202606-clean-nav"></script>
+  <script src="./admin-role.js?v=202606-clean-nav"></script>
+  <script src="./app-stability.js?v=202606-clean-nav"></script>
 </body>
 </html>
