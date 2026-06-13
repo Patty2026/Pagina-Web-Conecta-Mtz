@@ -92,8 +92,8 @@ function applyAdminPanelInfo() {
 
   if (description) {
     description.textContent = role === 'Superadmin'
-      ? 'Acceso total: usuarios, administradores, reportes, estadísticas y configuración general.'
-      : 'Acceso operativo: gestión de reportes, mapa, notificaciones y estadísticas básicas.';
+      ? 'Panel central: incidentes, ubicaciones, estadísticas y gestión de administradores.'
+      : 'Panel operativo: incidentes, mapa y seguimiento en tiempo real.';
   }
 
   if (profileName && role) profileName.textContent = role;
@@ -128,6 +128,13 @@ async function loadAdminModules() {
   } catch (error) {
     console.warn('No se pudo cargar admin-map.js:', error);
   }
+
+  try {
+    await import('./admin-navigation-clean.js');
+    window.setupAdminNavigation?.();
+  } catch (error) {
+    console.warn('No se pudo cargar admin-navigation-clean.js:', error);
+  }
 }
 
 function goAdminPanel() {
@@ -143,6 +150,7 @@ function goAdminPanel() {
     adminScreen.classList.add('active');
     applyAdminPanelInfo();
     loadAdminModules();
+    window.refreshCleanAdminNav?.();
     window.scrollTo(0, 0);
   }
 }
@@ -214,7 +222,9 @@ function protectAdminActions() {
       'locationScreen',
       'evidenceScreen',
       'confirmScreen',
-      'supportScreen'
+      'supportScreen',
+      'trackingScreen',
+      'notificationsScreen'
     ];
 
     if (blockedForAdmin.includes(destination)) {
@@ -234,9 +244,7 @@ function keepAdminOnAdminPanel() {
     const active = document.querySelector('.screen.active');
     const allowed = [
       'adminScreen',
-      'trackingScreen',
       'mapScreen',
-      'notificationsScreen',
       'profileScreen'
     ];
 
