@@ -86,6 +86,11 @@ service cloud.firestore {
       allow delete: if signedIn() && isAdmin();
     }
 
+    match /estadisticas/{documentoId} {
+      allow read: if signedIn() && (isAdmin() || isSupport());
+      allow create, update, delete: if signedIn() && isSuperadmin();
+    }
+
     match /administradores/{adminId} {
       allow read: if signedIn() && isAdmin();
       allow create, update, delete: if signedIn() && isSuperadmin();
