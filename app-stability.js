@@ -67,13 +67,14 @@
     if (hasScript(src)) return;
 
     const script = document.createElement('script');
-    script.src = `${src}?v=202606-superadmin-enhanced`;
+    script.src = `${src}?v=202606-access-fix`;
     script.type = type;
     script.defer = true;
     document.body.appendChild(script);
   }
 
   function loadBaseModules() {
+    loadScript('./auth-access-fix.js', 'module');
     loadScript('./navigation-history.js');
     loadScript('./profile-clean.js', 'module');
     loadScript('./realtime-sync.js', 'module');
