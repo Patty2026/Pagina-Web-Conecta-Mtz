@@ -24,39 +24,83 @@ function saveProfileToStorage(profile) {
   localStorage.setItem('conectaPerfil', JSON.stringify({ ...stored, ...profile }));
 }
 
-function ensureProfileForm() {
+function ensureProfileDataPanel() {
   const profileScreen = document.getElementById('profileScreen');
-  if (!profileScreen || document.getElementById('profileCleanForm')) return;
+  if (!profileScreen) return;
 
-  const container = document.createElement('section');
-  container.className = 'profile-editor-card';
-  container.innerHTML = `
-    <div class="section-title">
-      <h3>Editar perfil</h3>
-      <small>Actualiza tus datos de contacto y apoyo.</small>
-    </div>
+  const oldEditor = document.getElementById('profileCleanForm')?.closest('.profile-editor-card');
+  if (oldEditor) oldEditor.remove();
 
-    <form id="profileCleanForm" class="app-form">
-      <label>Nombre</label>
-      <input id="profileCleanName" type="text" placeholder="Tu nombre" />
+  let panelButton = profileScreen.querySelector('[data-profile-panel="panelData"], [data-profile-panel="profileDataPanel"]');
+  let panel = document.getElementById('profileDataPanel');
 
-      <label>Num. de teléfono</label>
-      <input id="profileCleanPhone" type="tel" placeholder="Ej. 232 000 0000" />
+  if (!panelButton) {
+    const menu = profileScreen.querySelector('.menu-list');
+    if (menu) {
+      panelButton = document.createElement('button');
+      panelButton.className = 'profile-toggle';
+      panelButton.type = 'button';
+      panelButton.dataset.profilePanel = 'profileDataPanel';
+      panelButton.innerHTML = 'Mis datos <span>›</span>';
+      menu.insertBefore(panelButton, menu.firstChild);
+    }
+  }
 
-      <label>Ocupación</label>
-      <input id="profileCleanOccupation" type="text" placeholder="Ej. Electricista, plomero, docente" />
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'profileDataPanel';
+    panel.className = 'profile-panel';
+    panel.innerHTML = `
+      <div class="panel-header">
+        <div>
+          <b>Mis datos</b>
+          <small>Actualiza tu información personal y de apoyo.</small>
+        </div>
+      </div>
 
-      <label>Descripción del Apoyo</label>
-      <textarea id="profileCleanSupport" placeholder="Describe cómo puedes apoyar o qué servicio/oficio brindas."></textarea>
+      <form id="profileCleanForm" class="app-form">
+        <label>Nombre</label>
+        <input id="profileCleanName" type="text" placeholder="Tu nombre" />
 
-      <button class="main-btn" type="submit">Guardar cambios</button>
-      <small id="profileCleanMessage"></small>
-    </form>
-  `;
+        <label>Num. de teléfono</label>
+        <input id="profileCleanPhone" type="tel" placeholder="Ej. 232 000 0000" />
 
-  const menu = profileScreen.querySelector('.menu-list');
-  profileScreen.insertBefore(container, menu || profileScreen.querySelector('.bottom-nav'));
+        <label>Ocupación</label>
+        <input id="profileCleanOccupation" type="text" placeholder="Ej. Electricista, plomero, docente" />
+
+        <label>Descripción del Apoyo</label>
+        <textarea id="profileCleanSupport" placeholder="Describe cómo puedes apoyar o qué servicio/oficio brindas."></textarea>
+
+        <button class="main-btn" type="submit">Guardar cambios</button>
+        <small id="profileCleanMessage"></small>
+      </form>
+    `;
+
+    if (panelButton) {
+      panelButton.insertAdjacentElement('afterend', panel);
+    } else {
+      const nav = profileScreen.querySelector('.bottom-nav');
+      profileScreen.insertBefore(panel, nav || null);
+    }
+  }
+
+  if (panelButton) {
+    panelButton.innerHTML = 'Mis datos <span>›</span>';
+    panelButton.dataset.profilePanel = 'profileDataPanel';
+  }
+
+  document.getElementById('profileCleanForm')?.removeEventListener('submit', saveProfile);
   document.getElementById('profileCleanForm')?.addEventListener('submit', saveProfile);
+}
+
+function openProfilePanel(panelId) {
+  const panel = document.getElementById(panelId);
+  if (!panel) return;
+
+  document.querySelectorAll('#profileScreen .profile-panel').forEach(item => {
+    item.classList.toggle('open', item.id === panelId);
+    item.style.display = item.id === panelId ? 'block' : 'none';
+  });
 }
 
 async function loadProfile() {
@@ -113,16 +157,30 @@ async function saveProfile(event) {
   await setDoc(doc(db, 'usuarios', user.uid), data, { merge: true });
   saveProfileToStorage(data);
   await loadProfile();
-  setText('profileCleanMessage', 'Perfil actualizado correctamente.');
+  setText('profileCleanMessage', 'Datos actualizados correctamente.');
 }
 
 export function startProfileClean() {
-  ensureProfileForm();
+  ensureProfileDataPanel();
   loadProfile();
 }
 
 window.startProfileClean = startProfileClean;
+window.openProfilePanel = openProfilePanel;
+
 window.addEventListener('load', () => setTimeout(startProfileClean, 900));
+
 document.addEventListener('click', event => {
-  if (event.target.closest('[data-go="profileScreen"]')) setTimeout(startProfileClean, 250);
+  const toggle = event.target.closest('#profileScreen [data-profile-panel]');
+  if (toggle) {
+    const panelId = toggle.dataset.profilePanel;
+    if (panelId === 'profileDataPanel' || panelId === 'panelData') {
+      event.preventDefault();
+      setTimeout(() => openProfilePanel('profileDataPanel'), 50);
+    }
+  }
+
+  if (event.target.closest('[data-go="profileScreen"]')) {
+    setTimeout(startProfileClean, 250);
+  }
 });
