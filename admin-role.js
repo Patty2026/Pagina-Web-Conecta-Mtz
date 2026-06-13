@@ -101,8 +101,8 @@ function applyAdminPanelInfo() {
 
   if (description) {
     description.textContent = role === 'Superadmin'
-      ? 'Panel central: incidentes, ubicaciones, estadísticas y gestión de administradores.'
-      : 'Panel operativo: incidentes, mapa y seguimiento en tiempo real.';
+      ? 'Panel central: incidentes, reportes, ubicaciones, estadísticas y gestión de administradores.'
+      : 'Panel operativo: incidentes, mapa, reportes y seguimiento en tiempo real.';
   }
 
   if (profileName && role) profileName.textContent = role;
@@ -119,7 +119,7 @@ async function loadAdminModules() {
   adminModulesLoaded = true;
 
   try {
-    const admin = await import('./admin-clean.js?v=202606-admin-clean');
+    const admin = await import('./admin-clean.js?v=202606-admin-clean-v2');
     admin.startAdminClean?.();
   } catch (error) {
     console.warn('No se pudo cargar admin-clean.js:', error);
@@ -211,7 +211,6 @@ function protectAdminActions() {
       'evidenceScreen',
       'confirmScreen',
       'supportScreen',
-      'trackingScreen',
       'notificationsScreen'
     ];
 
@@ -233,6 +232,7 @@ function keepAdminOnAdminPanel() {
     const allowed = [
       'adminScreen',
       'mapScreen',
+      'trackingScreen',
       'profileScreen',
       'splashScreen',
       'onboardingScreen',
