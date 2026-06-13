@@ -259,7 +259,7 @@
       </div>
     </section>
 
-    <!-- Reportes, mapa y alertas -->
+    <!-- Reportes -->
     <section class="screen tracking" id="trackingScreen">
       <button class="back" data-go="homeScreen">‹</button>
       <h2>Detalle del reporte</h2>
@@ -274,8 +274,9 @@
       <button class="main-btn" data-go="mapScreen">Ver en el mapa</button>
     </section>
 
+    <!-- Mapa -->
     <section class="screen map" id="mapScreen">
-      <button class="back" data-go="adminScreen">‹</button>
+      <button class="back" data-go="homeScreen">‹</button>
       <h2>Mapa</h2>
       <input class="map-search" id="mapSearchInput" placeholder="Buscar calle, colonia o reporte" />
       <div id="reportsMap" class="reports-map"></div>
@@ -290,6 +291,7 @@
       </nav>
     </section>
 
+    <!-- Notificaciones -->
     <section class="screen notifications" id="notificationsScreen">
       <button class="back" data-go="homeScreen">‹</button>
       <h2>Notificaciones</h2>
@@ -336,20 +338,24 @@
       <div class="menu-list profile-accordion">
         <button class="profile-toggle" data-profile-panel="panelReports">Mis reportes <span>›</span></button>
         <div class="profile-panel" id="panelReports">
-          <div id="profileReportsList" class="profile-list">
-            <div class="empty-state"><b>Cargando reportes...</b><small>Espera un momento.</small></div>
-          </div>
+          <div id="profileReportsList" class="profile-list"><div class="empty-state"><b>Cargando reportes...</b><small>Espera un momento.</small></div></div>
         </div>
 
-        <button class="profile-toggle" data-profile-panel="panelInfo">Mis datos <span>›</span></button>
-        <div class="profile-panel" id="panelInfo">
-          <div class="profile-list">
-            <div class="admin-live-item"><b>Correo</b><small id="profileEmail">Sin correo</small></div>
-            <div class="admin-live-item"><b>Rol</b><small id="profileRoleDetail">Sin rol</small></div>
-          </div>
+        <button class="profile-toggle" data-profile-panel="panelData">Mis datos <span>›</span></button>
+        <div class="profile-panel" id="panelData">
+          <div id="profileDataContent" class="profile-list"></div>
         </div>
 
-        <button id="logoutBtn" class="logout" type="button">Cerrar sesión</button>
+        <button class="profile-toggle" data-profile-panel="panelSettings">Configuración <span>›</span></button>
+        <div class="profile-panel" id="panelSettings"><div class="empty-state"><b>Configuración</b><small>Próximamente podrás ajustar preferencias.</small></div></div>
+
+        <button class="profile-toggle" data-profile-panel="panelHelp">Ayuda y soporte <span>›</span></button>
+        <div class="profile-panel" id="panelHelp"><div class="empty-state"><b>Ayuda y soporte</b><small>Contacta al área responsable para dudas o seguimiento.</small></div></div>
+
+        <button class="profile-toggle" data-profile-panel="panelAbout">Acerca de la app <span>›</span></button>
+        <div class="profile-panel" id="panelAbout"><div class="empty-state"><b>ConectaMartínez</b><small>Aplicación ciudadana para reportar incidencias comunitarias.</small></div></div>
+
+        <button id="logoutBtn">Cerrar sesión</button>
       </div>
 
       <nav class="bottom-nav admin-clean-nav">
@@ -359,13 +365,16 @@
       </nav>
     </section>
 
-    <!-- Admin ligero: los módulos JS agregan incidentes y administradores -->
+    <!-- Admin limpio -->
     <section class="screen admin" id="adminScreen">
+      <button class="back" data-go="loginScreen">‹</button>
+
       <header class="app-header">
         <div>
-          <b id="adminRoleTitle">Administrador</b>
-          <small id="adminRoleDescription">Panel administrativo en tiempo real.</small>
+          <h2>Panel Administrativo</h2>
+          <small id="adminRoleTitle">Administrador</small>
         </div>
+        <button class="bell" data-go="notificationsScreen">🔔</button>
       </header>
 
       <div class="status-banner">
@@ -392,5 +401,6 @@
   <script type="module" src="./script.js?v=202606-clean-nav"></script>
   <script src="./admin-role.js?v=202606-clean-nav"></script>
   <script src="./app-stability.js?v=202606-clean-nav"></script>
+  <script src="./security-regex.js?v=202606-security"></script>
 </body>
 </html>
