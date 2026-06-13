@@ -76,21 +76,60 @@ function formatDate(value) {
   return 'Sin registro';
 }
 
+function cleanAdminNavigation() {
+  document.querySelectorAll('#adminScreen .bottom-nav button, #mapScreen .bottom-nav button').forEach(button => {
+    const target = button.dataset.go;
+    const allowed = ['adminScreen', 'mapScreen', 'profileScreen'];
+
+    if (!allowed.includes(target)) {
+      button.remove();
+      return;
+    }
+
+    if (target === 'adminScreen') button.textContent = 'Panel';
+    if (target === 'mapScreen') button.textContent = 'Mapa';
+    if (target === 'profileScreen') button.textContent = 'Perfil';
+  });
+}
+
+function cleanAdminActionCards() {
+  document.querySelectorAll('#adminScreen .quick-grid button').forEach(button => {
+    const text = button.textContent.toLowerCase();
+
+    if (text.includes('reporte') || text.includes('notificacion') || text.includes('notificación')) {
+      button.remove();
+      return;
+    }
+
+    if (text.includes('mapa')) {
+      button.dataset.go = 'mapScreen';
+      button.innerHTML = '🗺️<span>Mapa</span>';
+    }
+
+    if (text.includes('administrador')) {
+      button.dataset.adminTab = 'admins';
+      button.setAttribute('data-superadmin-only', '');
+    }
+  });
+}
+
 function ensurePanel() {
   const adminScreen = document.getElementById('adminScreen');
-  if (!adminScreen || document.getElementById('adminCleanRoot')) return;
+  if (!adminScreen) return;
 
-  adminScreen.querySelectorAll('.bottom-nav button').forEach(button => {
-    const target = button.dataset.go;
-    if (!['adminScreen', 'mapScreen', 'profileScreen'].includes(target)) button.remove();
-    if (target === 'adminScreen') button.textContent = 'Panel';
-  });
+  cleanAdminNavigation();
+  cleanAdminActionCards();
+
+  if (document.getElementById('adminCleanRoot')) {
+    applyVisibility();
+    return;
+  }
 
   const root = document.createElement('section');
   root.id = 'adminCleanRoot';
   root.innerHTML = `
     <div class="tabs admin-window-tabs">
-      <button class="active" type="button" data-admin-tab="incidents">Incidentes</button>
+      <button class="active" type="button" data-admin-tab="incidents">Resumen</button>
       <button type="button" data-admin-tab="admins" data-superadmin-only>Administradores</button>
     </div>
 
@@ -187,6 +226,13 @@ function applyVisibility() {
   document.querySelectorAll('[data-superadmin-only]').forEach(element => {
     element.style.display = isSuperadmin() ? '' : 'none';
   });
+
+  if (!isSuperadmin()) {
+    const managers = document.getElementById('adminManagersTab');
+    const incidents = document.getElementById('adminIncidentsTab');
+    if (managers) managers.style.display = 'none';
+    if (incidents) incidents.style.display = '';
+  }
 }
 
 function renderIncidents(reports) {
