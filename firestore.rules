@@ -9,15 +9,25 @@ service cloud.firestore {
 
     function authEmail() {
       return signedIn() && request.auth.token.email != null
-        ? lower(request.auth.token.email)
+        ? request.auth.token.email.lower()
         : '';
     }
 
+    function isSuperadminEmail() {
+      return authEmail() == 'adminp@gmail.com';
+    }
+
+    function isBasicAdminEmail() {
+      return authEmail() == 'adminb@gmail.com';
+    }
+
     function isAdminEmail() {
-      return authEmail() in [
-        'adminp@gmail.com',
-        'adminb@gmail.com'
-      ];
+      return isSuperadminEmail() || isBasicAdminEmail();
+    }
+
+    function userDocExists() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid));
     }
 
     function userProfile() {
@@ -25,13 +35,13 @@ service cloud.firestore {
     }
 
     function userRole() {
-      return signedIn() && userProfile().rol != null
-        ? lower(userProfile().rol)
+      return userDocExists() && userProfile().rol != null
+        ? userProfile().rol.lower()
         : '';
     }
 
     function isSuperadmin() {
-      return authEmail() == 'adminp@gmail.com'
+      return isSuperadminEmail()
         || userRole().matches('.*superadmin.*');
     }
 
@@ -53,42 +63,47 @@ service cloud.firestore {
       allow create: if signedIn() && (isOwner(userId) || isAdmin());
       allow read: if signedIn() && (isOwner(userId) || isAdmin());
       allow update: if signedIn() && (isOwner(userId) || isAdmin());
-      allow delete: if signedIn() && isAdmin();
+      allow delete: if signedIn() && isSuperadmin();
     }
 
     match /incidencias/{incidenciaId} {
       allow create: if signedIn() && (
         request.resource.data.idCiudadano == request.auth.uid ||
+        request.resource.data.usuarioId == request.auth.uid ||
         isAdmin()
       );
 
       allow read: if signedIn() && (
         resource.data.idCiudadano == request.auth.uid ||
+        resource.data.usuarioId == request.auth.uid ||
         isSupport() ||
         isAdmin()
       );
 
       allow update: if signedIn() && (
         resource.data.idCiudadano == request.auth.uid ||
+        resource.data.usuarioId == request.auth.uid ||
         isSupport() ||
         isAdmin()
       );
 
       allow delete: if signedIn() && (
         resource.data.idCiudadano == request.auth.uid ||
-        isAdmin()
+        resource.data.usuarioId == request.auth.uid ||
+        isSuperadmin()
       );
     }
 
     match /contadores/{contadorId} {
       allow read: if signedIn();
       allow create, update: if signedIn();
-      allow delete: if signedIn() && isAdmin();
+      allow delete: if signedIn() && isSuperadmin();
     }
 
     match /estadisticas/{documentoId} {
       allow read: if signedIn() && (isAdmin() || isSupport());
-      allow create, update, delete: if signedIn() && isSuperadmin();
+      allow create, update: if signedIn() && isAdmin();
+      allow delete: if signedIn() && isSuperadmin();
     }
 
     match /administradores/{adminId} {
@@ -100,6 +115,12 @@ service cloud.firestore {
       allow read: if signedIn() && isSuperadmin();
       allow create: if signedIn() && isSuperadmin();
       allow update, delete: if false;
+    }
+
+    match /notificaciones_internas/{notificacionId} {
+      allow read: if signedIn() && (isAdmin() || isSupport());
+      allow create: if signedIn() && isAdmin();
+      allow update, delete: if signedIn() && isSuperadmin();
     }
   }
 }
