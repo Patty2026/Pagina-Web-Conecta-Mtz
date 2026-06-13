@@ -60,7 +60,7 @@
     if (hasScript(src)) return;
 
     const script = document.createElement('script');
-    script.src = `${src}?v=202606-realtime-clean`;
+    script.src = `${src}?v=202606-name-fix`;
     script.type = type;
     script.defer = true;
     document.body.appendChild(script);
@@ -75,6 +75,7 @@
   function loadAdminOnlyModules() {
     if (!isRealAdmin()) return;
     loadScript('./admin-clean.js', 'module');
+    loadScript('./admin-profile-fix.js', 'module');
   }
 
   function removeAdminViewsForNonAdmin() {
@@ -119,6 +120,7 @@
 
     if (isRealAdmin()) {
       window.startAdminClean?.();
+      window.restoreAdminProfileName?.();
     } else {
       removeAdminViewsForNonAdmin();
       fixSupportNavigation();
