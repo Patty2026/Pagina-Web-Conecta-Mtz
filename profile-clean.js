@@ -62,14 +62,33 @@ function startAuthListener() {
 
   onAuthStateChanged(auth, user => {
     authUserCache = user || null;
+    window.conectaCurrentUser = user || null;
+
     if (user) {
+      saveProfileToStorage({ uid: user.uid, correo: user.email, email: user.email });
       setTimeout(() => loadProfile({ forceFill: false }), 150);
     }
   });
 }
 
 function getRealUser() {
-  return auth.currentUser || authUserCache || null;
+  return auth.currentUser || authUserCache || window.conectaCurrentUser || null;
+}
+
+async function recoverUserFromStorage() {
+  const user = getRealUser();
+  if (user) return user;
+
+  const stored = getProfileFromStorage();
+  if (stored.uid && (stored.correo || stored.email)) {
+    return {
+      uid: stored.uid,
+      email: stored.correo || stored.email,
+      fromStorage: true
+    };
+  }
+
+  return null;
 }
 
 function removeDuplicateDataPanels() {
@@ -186,17 +205,21 @@ async function waitForAuthUser() {
 
   if (getRealUser()) return getRealUser();
 
+  const stored = await recoverUserFromStorage();
+  if (stored) return stored;
+
   return new Promise(resolve => {
     const unsubscribe = onAuthStateChanged(auth, user => {
       authUserCache = user || null;
+      window.conectaCurrentUser = user || null;
       unsubscribe();
-      resolve(user || null);
+      resolve(user || recoverUserFromStorage());
     });
 
-    setTimeout(() => {
+    setTimeout(async () => {
       unsubscribe();
-      resolve(getRealUser());
-    }, 7000);
+      resolve(await recoverUserFromStorage());
+    }, 5000);
   });
 }
 
@@ -208,11 +231,11 @@ async function loadProfile({ forceFill = false } = {}) {
   const shouldFillInputs = forceFill || !sameUserAlreadyLoaded;
 
   const stored = getProfileFromStorage();
-  let data = { ...stored, correo: user.email, uid: user.uid };
+  let data = { ...stored, correo: user.email, email: user.email, uid: user.uid };
 
   try {
     const snap = await getDoc(doc(db, 'usuarios', user.uid));
-    if (snap.exists()) data = { ...data, ...snap.data(), uid: user.uid, correo: user.email };
+    if (snap.exists()) data = { ...data, ...snap.data(), uid: user.uid, correo: user.email, email: user.email };
   } catch (error) {
     console.warn('No se pudo cargar perfil desde Firestore:', error);
     setText('profileCleanMessage', 'No se pudo cargar el perfil desde la base de datos.');
@@ -249,7 +272,7 @@ async function saveProfile(event) {
   const user = await waitForAuthUser();
   const message = document.getElementById('profileCleanMessage');
 
-  if (!user) {
+  if (!user?.uid) {
     if (message) message.textContent = 'No se detectó la sesión activa. Cierra sesión e inicia nuevamente.';
     return;
   }
@@ -265,6 +288,7 @@ async function saveProfile(event) {
     ocupacion: document.getElementById('profileCleanOccupation')?.value?.trim() || '',
     descripcionApoyo: document.getElementById('profileCleanSupport')?.value?.trim() || '',
     correo: user.email,
+    email: user.email,
     uid: user.uid,
     rol: stored.rol || 'Usuario',
     estado: stored.estado || 'Activo',
