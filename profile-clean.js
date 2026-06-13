@@ -9,6 +9,7 @@ import {
 let profileLoadedOnceForUid = null;
 let userIsEditingProfile = false;
 let profileSaving = false;
+let authReady = false;
 
 function setText(id, value) {
   const element = document.getElementById(id);
@@ -49,6 +50,10 @@ function validateProfileData(data) {
   }
 
   return '';
+}
+
+function getRealUser() {
+  return auth.currentUser;
 }
 
 function removeDuplicateDataPanels() {
@@ -160,21 +165,36 @@ function openProfilePanel(panelId) {
   }
 }
 
+async function waitForAuthUser() {
+  if (auth.currentUser) return auth.currentUser;
+
+  return new Promise(resolve => {
+    const started = Date.now();
+    const timer = setInterval(() => {
+      if (auth.currentUser || Date.now() - started > 5000) {
+        clearInterval(timer);
+        resolve(auth.currentUser);
+      }
+    }, 120);
+  });
+}
+
 async function loadProfile({ forceFill = false } = {}) {
-  const user = auth.currentUser;
+  const user = await waitForAuthUser();
   if (!user || profileSaving) return;
 
   const sameUserAlreadyLoaded = profileLoadedOnceForUid === user.uid;
   const shouldFillInputs = forceFill || !sameUserAlreadyLoaded;
 
   const stored = getProfileFromStorage();
-  let data = { ...stored, correo: user.email };
+  let data = { ...stored, correo: user.email, uid: user.uid };
 
   try {
     const snap = await getDoc(doc(db, 'usuarios', user.uid));
-    if (snap.exists()) data = { ...data, ...snap.data() };
+    if (snap.exists()) data = { ...data, ...snap.data(), uid: user.uid, correo: user.email };
   } catch (error) {
     console.warn('No se pudo cargar perfil desde Firestore:', error);
+    setText('profileCleanMessage', 'No se pudo cargar el perfil desde la base de datos.');
   }
 
   const name = data.nombre || user.email?.split('@')[0] || 'Usuario';
@@ -205,11 +225,18 @@ async function loadProfile({ forceFill = false } = {}) {
 async function saveProfile(event) {
   event.preventDefault();
 
-  const user = auth.currentUser;
-  if (!user || profileSaving) return;
+  const user = getRealUser() || await waitForAuthUser();
+  const message = document.getElementById('profileCleanMessage');
+
+  if (!user) {
+    if (message) message.textContent = 'Primero inicia sesión para guardar tus datos.';
+    return;
+  }
+
+  if (profileSaving) return;
 
   const saveButton = document.getElementById('profileCleanSaveBtn');
-  const message = document.getElementById('profileCleanMessage');
+  const stored = getProfileFromStorage();
 
   const data = {
     nombre: document.getElementById('profileCleanName')?.value?.trim() || user.email.split('@')[0],
@@ -218,6 +245,8 @@ async function saveProfile(event) {
     descripcionApoyo: document.getElementById('profileCleanSupport')?.value?.trim() || '',
     correo: user.email,
     uid: user.uid,
+    rol: stored.rol || 'Usuario',
+    estado: stored.estado || 'Activo',
     fechaActualizacion: serverTimestamp()
   };
 
@@ -233,6 +262,7 @@ async function saveProfile(event) {
       saveButton.disabled = true;
       saveButton.textContent = 'Guardando...';
     }
+    if (message) message.textContent = 'Guardando en la base de datos...';
 
     await setDoc(doc(db, 'usuarios', user.uid), data, { merge: true });
 
@@ -246,10 +276,10 @@ async function saveProfile(event) {
 
     await loadProfile({ forceFill: true });
 
-    if (message) message.textContent = 'Datos guardados en la base de datos correctamente.';
+    if (message) message.textContent = 'Datos guardados correctamente en Firestore.';
   } catch (error) {
     console.error('No se pudieron guardar los datos:', error);
-    if (message) message.textContent = 'No se pudo guardar. Revisa tu conexión o permisos de Firestore.';
+    if (message) message.textContent = `No se pudo guardar: ${error.code || 'revisa conexión o reglas de Firestore'}`;
   } finally {
     profileSaving = false;
     if (saveButton) {
@@ -259,9 +289,9 @@ async function saveProfile(event) {
   }
 }
 
-export function startProfileClean() {
+export async function startProfileClean() {
   ensureProfileDataPanel();
-  loadProfile();
+  await loadProfile();
 }
 
 window.startProfileClean = startProfileClean;
