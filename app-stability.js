@@ -39,6 +39,13 @@
       || role.includes('administrador');
   }
 
+  function isSuperadmin() {
+    const email = getCurrentEmail();
+    const role = getCurrentRole();
+
+    return email === 'adminp@gmail.com' || role.includes('superadmin');
+  }
+
   function isSupportOrCitizen() {
     const role = getCurrentRole();
     const email = getCurrentEmail();
@@ -60,7 +67,7 @@
     if (hasScript(src)) return;
 
     const script = document.createElement('script');
-    script.src = `${src}?v=202606-name-fix`;
+    script.src = `${src}?v=202606-superadmin-enhanced`;
     script.type = type;
     script.defer = true;
     document.body.appendChild(script);
@@ -76,14 +83,20 @@
     if (!isRealAdmin()) return;
     loadScript('./admin-clean.js', 'module');
     loadScript('./admin-profile-fix.js', 'module');
+
+    if (isSuperadmin()) {
+      loadScript('./superadmin-enhancements.js', 'module');
+    }
   }
 
   function removeAdminViewsForNonAdmin() {
     if (!isSupportOrCitizen()) return;
 
     document.querySelectorAll(
-      '#adminCleanRoot, #adminRealtimePanel, #adminWindowsRoot, #adminMapPanel, #adminManagersWindow, .admin-window-tabs, .admin-map-panel, .admin-realtime-panel'
+      '#adminCleanRoot, #adminRealtimePanel, #adminWindowsRoot, #adminMapPanel, #adminManagersWindow, #superIncidentTools, #superadminMovementPanel, #superadminNotificationsPanel, .admin-window-tabs, .admin-map-panel, .admin-realtime-panel'
     ).forEach(element => element.remove());
+
+    document.body.classList.remove('superadmin-enhanced');
 
     const adminScreen = document.getElementById('adminScreen');
     if (adminScreen) adminScreen.classList.remove('active');
@@ -121,7 +134,12 @@
     if (isRealAdmin()) {
       window.startAdminClean?.();
       window.restoreAdminProfileName?.();
+
+      if (isSuperadmin()) {
+        window.startSuperadminEnhancements?.();
+      }
     } else {
+      window.stopSuperadminEnhancements?.();
       removeAdminViewsForNonAdmin();
       fixSupportNavigation();
     }
