@@ -6,6 +6,9 @@ import {
   serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
 
+let profileLoadedOnceForUid = null;
+let userIsEditingProfile = false;
+
 function setText(id, value) {
   const element = document.getElementById(id);
   if (element) element.textContent = value;
@@ -50,6 +53,7 @@ function ensureProfileDataPanel() {
     panel = document.createElement('div');
     panel.id = 'profileDataPanel';
     panel.className = 'profile-panel';
+    panel.style.display = 'none';
     panel.innerHTML = `
       <div class="panel-header">
         <div>
@@ -60,10 +64,10 @@ function ensureProfileDataPanel() {
 
       <form id="profileCleanForm" class="app-form">
         <label>Nombre</label>
-        <input id="profileCleanName" type="text" placeholder="Tu nombre" />
+        <input id="profileCleanName" type="text" placeholder="Tu nombre" autocomplete="name" />
 
         <label>Num. de teléfono</label>
-        <input id="profileCleanPhone" type="tel" placeholder="Ej. 232 000 0000" />
+        <input id="profileCleanPhone" type="tel" placeholder="Ej. 232 000 0000" autocomplete="tel" />
 
         <label>Ocupación</label>
         <input id="profileCleanOccupation" type="text" placeholder="Ej. Electricista, plomero, docente" />
@@ -89,8 +93,15 @@ function ensureProfileDataPanel() {
     panelButton.dataset.profilePanel = 'profileDataPanel';
   }
 
-  document.getElementById('profileCleanForm')?.removeEventListener('submit', saveProfile);
-  document.getElementById('profileCleanForm')?.addEventListener('submit', saveProfile);
+  const form = document.getElementById('profileCleanForm');
+  form?.removeEventListener('submit', saveProfile);
+  form?.addEventListener('submit', saveProfile);
+
+  form?.querySelectorAll('input, textarea').forEach(field => {
+    field.addEventListener('input', () => {
+      userIsEditingProfile = true;
+    });
+  });
 }
 
 function openProfilePanel(panelId) {
@@ -103,9 +114,12 @@ function openProfilePanel(panelId) {
   });
 }
 
-async function loadProfile() {
+async function loadProfile({ forceFill = false } = {}) {
   const user = auth.currentUser;
   if (!user) return;
+
+  const sameUserAlreadyLoaded = profileLoadedOnceForUid === user.uid;
+  const shouldFillInputs = forceFill || !sameUserAlreadyLoaded || !userIsEditingProfile;
 
   const stored = getProfileFromStorage();
   let data = { ...stored, correo: user.email };
@@ -126,16 +140,19 @@ async function loadProfile() {
   const avatar = document.querySelector('#profileScreen .avatar');
   if (avatar) avatar.textContent = name.slice(0, 1).toUpperCase();
 
-  const nameInput = document.getElementById('profileCleanName');
-  const phoneInput = document.getElementById('profileCleanPhone');
-  const occupationInput = document.getElementById('profileCleanOccupation');
-  const supportInput = document.getElementById('profileCleanSupport');
+  if (shouldFillInputs) {
+    const nameInput = document.getElementById('profileCleanName');
+    const phoneInput = document.getElementById('profileCleanPhone');
+    const occupationInput = document.getElementById('profileCleanOccupation');
+    const supportInput = document.getElementById('profileCleanSupport');
 
-  if (nameInput) nameInput.value = data.nombre || '';
-  if (phoneInput) phoneInput.value = data.numeroTelefono || data.telefono || '';
-  if (occupationInput) occupationInput.value = data.ocupacion || '';
-  if (supportInput) supportInput.value = data.descripcionApoyo || '';
+    if (nameInput) nameInput.value = data.nombre || '';
+    if (phoneInput) phoneInput.value = data.numeroTelefono || data.telefono || '';
+    if (occupationInput) occupationInput.value = data.ocupacion || '';
+    if (supportInput) supportInput.value = data.descripcionApoyo || '';
+  }
 
+  profileLoadedOnceForUid = user.uid;
   saveProfileToStorage(data);
 }
 
@@ -156,7 +173,8 @@ async function saveProfile(event) {
 
   await setDoc(doc(db, 'usuarios', user.uid), data, { merge: true });
   saveProfileToStorage(data);
-  await loadProfile();
+  userIsEditingProfile = false;
+  await loadProfile({ forceFill: true });
   setText('profileCleanMessage', 'Datos actualizados correctamente.');
 }
 
