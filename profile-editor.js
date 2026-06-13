@@ -12,6 +12,8 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
 
 let profileEditorReady = false;
+let lastLoadedUid = null;
+let lastLoadedAt = 0;
 
 function getStoredProfile() {
   try {
@@ -33,6 +35,10 @@ function currentRole() {
   return window.getCurrentAdminRole?.() || getStoredProfile().rol || 'Ciudadano';
 }
 
+function isSupportRole(role = '') {
+  return String(role).toLowerCase().includes('apoyo');
+}
+
 function ensureProfileEditor() {
   const profileScreen = document.getElementById('profileScreen');
   if (!profileScreen || document.getElementById('profileEditorCard')) return;
@@ -44,13 +50,20 @@ function ensureProfileEditor() {
     <h3>Datos del perfil</h3>
     <form id="profileEditorForm" class="app-form">
       <label>Nombre para mostrar</label>
-      <input id="profileEditName" type="text" placeholder="Tu nombre">
+      <input id="profileEditName" type="text" placeholder="Tu nombre" maxlength="80">
 
       <label>Correo electrónico</label>
       <input id="profileEditEmail" type="email" disabled>
 
       <label>Rol</label>
       <input id="profileEditRole" type="text" disabled>
+
+      <label>Número de teléfono</label>
+      <input id="profileEditPhone" type="tel" placeholder="Ej. 232 123 4567" maxlength="20">
+
+      <label id="profileOccupationLabel">Ocupación, oficio o forma en que puedes apoyar</label>
+      <textarea id="profileEditOccupation" placeholder="Ej. Electricista, plomero, apoyo comunitario, mantenimiento, limpieza, gestión vecinal..." maxlength="280"></textarea>
+      <small id="profileOccupationHelp">Esta información ayuda a otros usuarios a conocer quién atiende o apoya sus incidencias.</small>
 
       <label>Estado</label>
       <input id="profileEditStatus" type="text" disabled>
@@ -86,12 +99,35 @@ function setAvatar(name = 'U') {
   if (avatar) avatar.textContent = String(name || 'U').trim().charAt(0).toUpperCase() || 'U';
 }
 
-async function loadProfileData() {
+function updateOccupationVisibility(role = '') {
+  const label = document.getElementById('profileOccupationLabel');
+  const help = document.getElementById('profileOccupationHelp');
+  const field = document.getElementById('profileEditOccupation');
+
+  if (!label || !help || !field) return;
+
+  if (isSupportRole(role)) {
+    label.textContent = 'Breve descripción de tu ocupación u oficio de apoyo';
+    field.placeholder = 'Ej. Soy electricista y puedo apoyar con alumbrado público, revisión básica de instalaciones o reportes comunitarios.';
+    help.textContent = 'Esta descripción podrá orientar a los usuarios cuando atiendas sus incidentes.';
+  } else {
+    label.textContent = 'Breve descripción de ocupación o apoyo que puedes brindar';
+    field.placeholder = 'Ej. Estudiante, comerciante, vecino, voluntario comunitario o algún oficio que puedas apoyar.';
+    help.textContent = 'Este campo es opcional. Ayuda a conocer mejor tu perfil dentro de la comunidad.';
+  }
+}
+
+async function loadProfileData(force = false) {
   ensureProfileEditor();
 
   const user = auth.currentUser;
   const stored = getStoredProfile();
   const role = currentRole();
+  const now = Date.now();
+
+  if (!force && user?.uid && lastLoadedUid === user.uid && now - lastLoadedAt < 2500) {
+    return;
+  }
 
   let profile = stored;
 
@@ -110,6 +146,9 @@ async function loadProfileData() {
         ...stored,
         correo: user.email || stored.correo,
         nombre: stored.nombre || user.email?.split('@')[0] || 'Usuario',
+        telefono: stored.telefono || '',
+        ocupacion: stored.ocupacion || '',
+        descripcionApoyo: stored.descripcionApoyo || '',
         rol: role,
         estado: 'Activo'
       };
@@ -123,23 +162,37 @@ async function loadProfileData() {
   const displayName = profile.nombre || profile.correo?.split('@')[0] || 'Usuario';
   const email = profile.correo || profile.email || user?.email || '';
   const status = profile.estado || 'Activo';
+  const phone = profile.telefono || profile.numeroTelefono || '';
+  const occupation = profile.descripcionApoyo || profile.ocupacion || profile.oficio || '';
+  const resolvedRole = role || profile.rol || 'Usuario';
 
   setText('profileName', displayName);
-  setText('profileRole', `${role || profile.rol || 'Usuario'} activo`);
+  setText('profileRole', `${resolvedRole} activo`);
   setAvatar(displayName);
 
   setField('profileEditName', displayName);
   setField('profileEditEmail', email);
-  setField('profileEditRole', role || profile.rol || 'Usuario');
+  setField('profileEditRole', resolvedRole);
+  setField('profileEditPhone', phone);
+  setField('profileEditOccupation', occupation);
   setField('profileEditStatus', status);
+  updateOccupationVisibility(resolvedRole);
 
   saveStoredProfile({
     ...profile,
     nombre: displayName,
     correo: email,
-    rol: role || profile.rol,
+    telefono: phone,
+    ocupacion: occupation,
+    descripcionApoyo: occupation,
+    rol: resolvedRole,
     estado: status
   });
+
+  if (user?.uid) {
+    lastLoadedUid = user.uid;
+    lastLoadedAt = now;
+  }
 }
 
 async function saveProfileChanges(event) {
@@ -148,6 +201,8 @@ async function saveProfileChanges(event) {
   const user = auth.currentUser;
   const message = document.getElementById('profileEditMessage');
   const name = document.getElementById('profileEditName')?.value?.trim();
+  const phone = document.getElementById('profileEditPhone')?.value?.trim() || '';
+  const occupation = document.getElementById('profileEditOccupation')?.value?.trim() || '';
 
   if (!name) {
     if (message) message.textContent = 'Escribe un nombre válido.';
@@ -157,44 +212,52 @@ async function saveProfileChanges(event) {
   const stored = getStoredProfile();
   const email = stored.correo || stored.email || user?.email || '';
   const role = currentRole();
+  const status = stored.estado || 'Activo';
+
+  const profileData = {
+    nombre: name,
+    correo: email,
+    rol: role,
+    estado: status,
+    telefono: phone,
+    numeroTelefono: phone,
+    ocupacion: occupation,
+    descripcionApoyo: occupation
+  };
 
   if (!user?.uid) {
-    saveStoredProfile({ nombre: name, correo: email, rol: role });
+    saveStoredProfile(profileData);
     setText('profileName', name);
     setText('profileRole', `${role} activo`);
     setAvatar(name);
-    if (message) message.textContent = 'Nombre actualizado localmente.';
+    if (message) message.textContent = 'Perfil actualizado localmente.';
     return;
   }
 
   const profileRef = doc(db, 'usuarios', user.uid);
 
   await updateDoc(profileRef, {
-    nombre: name,
-    correo: email,
-    rol: role,
-    estado: stored.estado || 'Activo',
+    ...profileData,
     fechaActualizacion: serverTimestamp()
   });
 
-  saveStoredProfile({
-    nombre: name,
-    correo: email,
-    rol: role,
-    estado: stored.estado || 'Activo'
-  });
+  saveStoredProfile(profileData);
 
   setText('profileName', name);
   setText('profileRole', `${role} activo`);
   setAvatar(name);
+  updateOccupationVisibility(role);
 
   if (message) message.textContent = 'Perfil actualizado correctamente.';
+
+  lastLoadedAt = 0;
+  setTimeout(() => loadProfileData(true), 400);
 }
 
 function watchProfileScreen() {
   document.addEventListener('click', event => {
     if (event.target.closest('[data-go="profileScreen"]')) {
-      setTimeout(loadProfileData, 250);
+      setTimeout(() => loadProfileData(true), 250);
     }
   });
 
@@ -203,7 +266,7 @@ function watchProfileScreen() {
     if (profileScreen?.classList.contains('active')) {
       loadProfileData();
     }
-  }, 3000);
+  }, 5000);
 }
 
 export function startProfileEditor() {
@@ -212,7 +275,7 @@ export function startProfileEditor() {
 
   ensureProfileEditor();
   watchProfileScreen();
-  setTimeout(loadProfileData, 500);
+  setTimeout(() => loadProfileData(true), 500);
 }
 
 window.startProfileEditor = startProfileEditor;
