@@ -12,7 +12,9 @@
     './admin-dashboard.js',
     './admin-map.js',
     './superadmin-module.js',
-    './admin-panel-summary-clean.js'
+    './admin-panel-summary-clean.js',
+    './admin-basic-restrictions.js',
+    './admin-map-single-window.js'
   ];
 
   function hasScript(src) {
@@ -53,6 +55,8 @@
         window.startAdminMap?.();
         window.startSuperadminModule?.();
         window.cleanAdminPanelSummary?.();
+        window.applyAdminBasicRestrictions?.();
+        window.enforceSingleMapWindow?.();
       }, 450);
     });
   }
@@ -68,10 +72,14 @@
         window.startAdminRealtimePanel?.();
         window.startSuperadminModule?.();
         window.cleanAdminPanelSummary?.();
+        window.applyAdminBasicRestrictions?.();
+        window.enforceSingleMapWindow?.();
       }
 
       if (mapScreen?.classList.contains('active')) {
         window.startAdminMap?.();
+        window.applyAdminBasicRestrictions?.();
+        window.enforceSingleMapWindow?.();
       }
     }, 1800);
   }
