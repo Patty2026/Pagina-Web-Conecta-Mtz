@@ -4,8 +4,8 @@ const ALL_ADMIN_EMAILS = [...SUPERADMIN_EMAILS, ...ADMIN_EMAILS];
 
 let adminGuardInterval = null;
 let adminSessionClosing = false;
-let adminModulesLoaded = false;
 let adminAutoRedirectEnabled = false;
+let retryAdminModulesTimer = null;
 
 function normalizeEmail(email = '') {
   return String(email).trim().toLowerCase();
@@ -35,8 +35,8 @@ function getLoginEmail() {
 function getAdminEmailCandidate() {
   const loginEmail = normalizeEmail(getLoginEmail());
 
-  // Prioridad al correo escrito en el login. Esto evita que una sesión anterior
-  // de ciudadano/apoyo bloquee el acceso del administrador.
+  // Si se está escribiendo un correo admin, siempre tiene prioridad.
+  // Esto evita que una sesión anterior de ciudadano/apoyo bloquee el acceso.
   if (resolveAdminRole(loginEmail)) return loginEmail;
 
   const stored = getStoredProfile();
@@ -65,6 +65,7 @@ function saveAdminProfile(email, role) {
 
   localStorage.setItem('conectaPerfil', JSON.stringify({
     ...stored,
+    uid: stored.uid || window.conectaCurrentUser?.uid || '',
     correo: safeEmail,
     email: safeEmail,
     nombre: keepStoredName ? stored.nombre : (safeEmail.split('@')[0] || role),
@@ -77,13 +78,17 @@ function saveAdminProfile(email, role) {
 function clearAdminProfile() {
   adminSessionClosing = true;
   adminAutoRedirectEnabled = false;
-  adminModulesLoaded = false;
   localStorage.removeItem('conectaPerfil');
   sessionStorage.removeItem('conectaPerfil');
 
   if (adminGuardInterval) {
     clearInterval(adminGuardInterval);
     adminGuardInterval = null;
+  }
+
+  if (retryAdminModulesTimer) {
+    clearTimeout(retryAdminModulesTimer);
+    retryAdminModulesTimer = null;
   }
 
   window.stopSuperadminEnhancements?.();
@@ -130,26 +135,30 @@ function applyAdminPanelInfo() {
   });
 }
 
-async function loadAdminModules() {
-  if (adminModulesLoaded || !isAdminUser()) return;
+function loadAdminModules() {
+  if (!isAdminUser()) return;
 
-  adminModulesLoaded = true;
+  let started = false;
 
   try {
-    const admin = await import('./admin-clean.js?v=202606-admin-access-fix');
-    admin.startAdminClean?.();
+    if (typeof window.startAdminClean === 'function') {
+      window.startAdminClean();
+      started = true;
+    }
 
-    if (getCurrentAdminRole() === 'Superadmin') {
-      try {
-        const superadmin = await import('./superadmin-enhancements.js?v=202606-admin-access-fix');
-        superadmin.startSuperadminEnhancements?.();
-      } catch (error) {
-        console.warn('No se pudo cargar superadmin-enhancements.js:', error);
-      }
+    if (getCurrentAdminRole() === 'Superadmin' && typeof window.startSuperadminEnhancements === 'function') {
+      window.startSuperadminEnhancements();
+      started = true;
     }
   } catch (error) {
-    console.warn('No se pudo cargar admin-clean.js:', error);
-    adminModulesLoaded = false;
+    console.warn('No se pudo iniciar el panel administrativo:', error);
+  }
+
+  // app-stability.js es el único encargado de cargar los módulos.
+  // Si todavía no han llegado, se reintenta sin importarlos otra vez.
+  if (!started) {
+    clearTimeout(retryAdminModulesTimer);
+    retryAdminModulesTimer = setTimeout(loadAdminModules, 600);
   }
 }
 
@@ -185,11 +194,10 @@ function activateAdminAfterLogin() {
     return;
   }
 
-  adminModulesLoaded = false;
   adminAutoRedirectEnabled = true;
   saveAdminProfile(getLoginEmail(), loginRole);
 
-  [150, 500, 1000, 1800, 3000, 5000].forEach(delay => {
+  [300, 900, 1800, 3200, 5000].forEach(delay => {
     setTimeout(forceAdminPanel, delay);
   });
 }
@@ -277,7 +285,11 @@ function keepAdminOnAdminPanel() {
     if (active && !allowed.includes(active.id)) {
       goAdminPanel();
     }
-  }, 1200);
+
+    if (active && allowed.includes(active.id)) {
+      loadAdminModules();
+    }
+  }, 1400);
 }
 
 window.resolveAdminRole = resolveAdminRole;
@@ -302,10 +314,8 @@ window.addEventListener('load', () => {
   protectAdminActions();
   keepAdminOnAdminPanel();
 
-  // Si ya existe un perfil administrativo guardado, intentar recuperar el panel.
-  // Ya no se queda detenido en Splash.
   if (isAdminUser()) {
     adminAutoRedirectEnabled = true;
-    setTimeout(forceAdminPanel, 600);
+    setTimeout(forceAdminPanel, 900);
   }
 });
