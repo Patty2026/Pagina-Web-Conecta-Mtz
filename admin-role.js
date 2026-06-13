@@ -3,6 +3,7 @@ const ADMIN_EMAILS = ['adminb@gmail.com'];
 
 let adminGuardInterval = null;
 let adminSessionClosing = false;
+let adminModulesLoaded = false;
 
 function normalizeEmail(email = '') {
   return String(email).trim().toLowerCase();
@@ -66,6 +67,9 @@ function clearAdminProfile() {
     clearInterval(adminGuardInterval);
     adminGuardInterval = null;
   }
+
+  window.stopAdminRealtimePanel?.();
+  window.stopAdminMap?.();
 }
 
 function goLoginScreen() {
@@ -100,6 +104,32 @@ function applyAdminPanelInfo() {
   });
 }
 
+async function loadAdminModules() {
+  if (adminModulesLoaded || !isAdminUser()) return;
+
+  adminModulesLoaded = true;
+
+  try {
+    const dashboard = await import('./admin-dashboard.js');
+    dashboard.startAdminRealtimePanel?.();
+  } catch (error) {
+    console.warn('No se pudo cargar admin-dashboard.js:', error);
+  }
+
+  try {
+    const superadmin = await import('./superadmin-module.js');
+    superadmin.startSuperadminModule?.();
+  } catch (error) {
+    console.warn('No se pudo cargar superadmin-module.js:', error);
+  }
+
+  try {
+    await import('./admin-map.js');
+  } catch (error) {
+    console.warn('No se pudo cargar admin-map.js:', error);
+  }
+}
+
 function goAdminPanel() {
   const role = getCurrentAdminRole();
   if (!role) return;
@@ -112,6 +142,7 @@ function goAdminPanel() {
   if (adminScreen) {
     adminScreen.classList.add('active');
     applyAdminPanelInfo();
+    loadAdminModules();
     window.scrollTo(0, 0);
   }
 }
@@ -131,6 +162,7 @@ function forceAdminPanel() {
 
 function activateAdminAfterLogin() {
   adminSessionClosing = false;
+  adminModulesLoaded = false;
 
   [250, 800, 1600, 2800, 4200].forEach(delay => {
     setTimeout(forceAdminPanel, delay);
@@ -221,6 +253,7 @@ window.goAdminPanel = goAdminPanel;
 window.applyAdminPanelInfo = applyAdminPanelInfo;
 window.forceAdminPanel = forceAdminPanel;
 window.clearAdminProfile = clearAdminProfile;
+window.loadAdminModules = loadAdminModules;
 
 window.addEventListener('load', () => {
   const loginForm = document.getElementById('loginForm');
