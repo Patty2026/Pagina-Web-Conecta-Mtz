@@ -1,6 +1,8 @@
 /* =========================================================
-   ConectaMartínez - Mejoras Superadmin
+   ConectaMartínez - Superadmin limpio
+   ---------------------------------------------------------
    Búsqueda, filtros, exportación, historial y notificaciones
+   sin repetir el CRUD de administradores en todas las vistas.
    ========================================================= */
 
 import { auth, db } from './firebase-service.js';
@@ -28,6 +30,8 @@ let unsubscribeNotifications = null;
 let unsubscribeUsers = null;
 let lastSync = null;
 let refreshTimer = null;
+let cleanTimer = null;
+let cleanObserver = null;
 
 function normalize(value = '') {
   return String(value || '').trim().toLowerCase();
@@ -87,13 +91,12 @@ function statusKey(status = 'pendiente') {
 }
 
 function statusLabel(status = 'pendiente') {
-  const key = statusKey(status);
   return {
     pendiente: 'Pendiente',
     en_proceso: 'En proceso',
     resuelto: 'Resuelto',
     cancelado: 'Cancelado'
-  }[key] || 'Pendiente';
+  }[statusKey(status)] || 'Pendiente';
 }
 
 function statusIcon(status = 'pendiente') {
@@ -132,15 +135,15 @@ function setText(id, value) {
 }
 
 function injectStyle() {
-  if (document.getElementById('superadminEnhancementStyle')) return;
+  if (document.getElementById('superadminCleanStyle')) return;
 
   const style = document.createElement('style');
-  style.id = 'superadminEnhancementStyle';
+  style.id = 'superadminCleanStyle';
   style.textContent = `
     body.superadmin-enhanced #adminScreen,
     body.superadmin-enhanced #trackingScreen,
     body.superadmin-enhanced #mapScreen {
-      background: radial-gradient(circle at top, #18215c 0%, #081023 48%, #050912 100%) !important;
+      background: radial-gradient(circle at top, #16215b 0%, #081023 46%, #050912 100%) !important;
       color: #ffffff;
     }
 
@@ -158,6 +161,26 @@ function injectStyle() {
     body.superadmin-enhanced .section-title small,
     body.superadmin-enhanced .admin-metric-card small {
       color: #d8e3ff !important;
+    }
+
+    body.superadmin-enhanced #adminScreen .quick-grid {
+      display: none !important;
+    }
+
+    body.superadmin-enhanced #adminCleanRoot > .admin-clean-tab {
+      display: none !important;
+    }
+
+    body.superadmin-enhanced #adminCleanRoot > .admin-clean-tab.superadmin-section-active {
+      display: block !important;
+    }
+
+    body.superadmin-enhanced #adminManagersTab .admin-crud-section {
+      display: none !important;
+    }
+
+    body.superadmin-enhanced #adminManagersTab .admin-crud-section.superadmin-crud-active {
+      display: block !important;
     }
 
     .superadmin-tools-card {
@@ -202,8 +225,8 @@ function injectStyle() {
     }
 
     .superadmin-filter-actions button,
-    .superadmin-action-btn,
-    .superadmin-notification-grid button {
+    .superadmin-notification-grid button,
+    .superadmin-action-btn {
       border: 0;
       border-radius: 15px;
       padding: 11px 14px;
@@ -219,37 +242,145 @@ function injectStyle() {
       box-shadow: none;
     }
 
-    .superadmin-table-head {
-      display: grid;
-      grid-template-columns: 1.1fr 1.2fr .85fr .85fr 1fr 1.1fr;
-      gap: 8px;
-      padding: 10px 12px;
-      border-radius: 15px;
-      background: rgba(255, 255, 255, .10);
-      color: #eaf0ff;
-      font-size: 12px;
-      font-weight: 900;
-      text-transform: uppercase;
-      letter-spacing: .04em;
-    }
-
-    .superadmin-empty {
+    .superadmin-empty,
+    .superadmin-clean-note {
       padding: 14px;
       border-radius: 16px;
       background: rgba(255, 255, 255, .08);
       color: #eaf0ff;
     }
 
+    .superadmin-clean-note {
+      display: block;
+      margin: 10px 0 12px;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
     @media (max-width: 780px) {
       .superadmin-filter-grid,
       .superadmin-notification-grid,
-      .superadmin-user-metrics,
-      .superadmin-table-head {
+      .superadmin-user-metrics {
         grid-template-columns: 1fr;
       }
     }
   `;
+
   document.head.appendChild(style);
+}
+
+function sectionId(tabName) {
+  return {
+    summary: 'adminSummaryTab',
+    incidents: 'adminIncidentsTab',
+    admins: 'adminManagersTab',
+    users: 'adminUsersTab'
+  }[tabName] || 'adminSummaryTab';
+}
+
+function crudId(tabName) {
+  return {
+    list: 'adminCrudList',
+    form: 'adminCrudForm',
+    history: 'adminCrudHistory'
+  }[tabName] || 'adminCrudList';
+}
+
+function activePanelTab() {
+  return document.querySelector('#adminCleanRoot [data-admin-tab].active')?.dataset.adminTab
+    || localStorage.getItem('superadminActivePanelTab')
+    || 'summary';
+}
+
+function activeCrudTab() {
+  return document.querySelector('#adminManagersTab [data-admin-crud-tab].active')?.dataset.adminCrudTab
+    || localStorage.getItem('superadminActiveCrudTab')
+    || 'list';
+}
+
+function applyPanelTab(tabName = activePanelTab()) {
+  const finalTab = ['summary', 'incidents', 'admins', 'users'].includes(tabName) ? tabName : 'summary';
+  localStorage.setItem('superadminActivePanelTab', finalTab);
+
+  ['summary', 'incidents', 'admins', 'users'].forEach(name => {
+    const section = document.getElementById(sectionId(name));
+    if (!section) return;
+    const active = name === finalTab;
+    section.classList.toggle('superadmin-section-active', active);
+    section.hidden = !active;
+    section.style.display = active ? '' : 'none';
+  });
+
+  document.querySelectorAll('#adminCleanRoot [data-admin-tab]').forEach(button => {
+    button.classList.toggle('active', button.dataset.adminTab === finalTab);
+  });
+
+  if (finalTab === 'admins') applyCrudTab(activeCrudTab());
+}
+
+function applyCrudTab(tabName = activeCrudTab()) {
+  const finalTab = ['list', 'form', 'history'].includes(tabName) ? tabName : 'list';
+  localStorage.setItem('superadminActiveCrudTab', finalTab);
+
+  ['list', 'form', 'history'].forEach(name => {
+    const section = document.getElementById(crudId(name));
+    if (!section) return;
+    const active = name === finalTab;
+    section.classList.toggle('superadmin-crud-active', active);
+    section.hidden = !active;
+    section.style.display = active ? '' : 'none';
+  });
+
+  document.querySelectorAll('#adminManagersTab [data-admin-crud-tab]').forEach(button => {
+    button.classList.toggle('active', button.dataset.adminCrudTab === finalTab);
+  });
+}
+
+function removeAdminCrudOutsideManagers() {
+  const managersTab = document.getElementById('adminManagersTab');
+  if (!managersTab) return;
+
+  ['adminCleanManagers', 'adminCleanForm', 'adminAccessHistory'].forEach(id => {
+    document.querySelectorAll(`#${id}`).forEach(element => {
+      if (managersTab.contains(element)) return;
+      const wrapper = element.closest('.admin-crud-section, .admin-data-card, section, div');
+      (wrapper || element).remove();
+    });
+  });
+}
+
+function cleanSummary() {
+  const summary = document.getElementById('adminSummaryTab');
+  if (!summary) return;
+
+  const title = summary.querySelector('.section-title h3');
+  if (title) title.textContent = 'Resumen principal';
+
+  document.getElementById('superadminMovementPanel')?.remove();
+  document.getElementById('superadminNotificationsPanel')?.remove();
+}
+
+function addAdminNote() {
+  const managersTab = document.getElementById('adminManagersTab');
+  if (!managersTab || document.getElementById('adminCleanOnlyHereNote')) return;
+
+  const note = document.createElement('small');
+  note.id = 'adminCleanOnlyHereNote';
+  note.className = 'superadmin-clean-note';
+  note.textContent = 'La gestión de administradores se muestra únicamente en esta pestaña para mantener limpio el panel principal.';
+
+  const metrics = managersTab.querySelector('.admin-mini-metrics');
+  managersTab.insertBefore(note, metrics?.nextSibling || managersTab.firstChild);
+}
+
+function keepPanelClean() {
+  if (!isSuperadmin()) return;
+  document.body.classList.add('superadmin-enhanced');
+  injectStyle();
+  removeAdminCrudOutsideManagers();
+  cleanSummary();
+  addAdminNote();
+  applyPanelTab(activePanelTab());
 }
 
 function ensureIncidentTools() {
@@ -297,29 +428,26 @@ function ensureIncidentTools() {
   document.getElementById('superExportCsv')?.addEventListener('click', exportFilteredCsv);
 }
 
-function ensureMovementPanel() {
-  const summary = document.getElementById('adminSummaryTab');
-  if (!summary || document.getElementById('superadminMovementPanel')) return;
+function ensureUsersMetrics() {
+  const usersTab = document.getElementById('adminUsersTab');
+  if (!usersTab || document.getElementById('superadminUsersMetrics')) return;
 
-  const panel = document.createElement('section');
-  panel.id = 'superadminMovementPanel';
-  panel.className = 'admin-data-card';
-  panel.innerHTML = `
-    <div class="section-title">
-      <h3>Movimiento del sistema</h3>
-      <small>Historial de cambios, acciones administrativas y actividad reciente.</small>
-    </div>
-    <div id="superadminMovementList" class="admin-live-list">
-      <small>Sincronizando historial...</small>
-    </div>
+  const metrics = document.createElement('div');
+  metrics.id = 'superadminUsersMetrics';
+  metrics.className = 'superadmin-user-metrics admin-mini-metrics';
+  metrics.innerHTML = `
+    <span id="superUsersRegistered">0 registrados</span>
+    <span id="superUsersActive">0 activos hoy</span>
+    <span id="superUsersInactive">0 sin actividad reciente</span>
   `;
 
-  summary.appendChild(panel);
+  const list = document.getElementById('adminCleanUsers');
+  usersTab.insertBefore(metrics, list || null);
 }
 
 function ensureNotificationsPanel() {
-  const summary = document.getElementById('adminSummaryTab');
-  if (!summary || document.getElementById('superadminNotificationsPanel')) return;
+  const usersTab = document.getElementById('adminUsersTab');
+  if (!usersTab || document.getElementById('superadminNotificationsPanel')) return;
 
   const panel = document.createElement('section');
   panel.id = 'superadminNotificationsPanel';
@@ -327,7 +455,7 @@ function ensureNotificationsPanel() {
   panel.innerHTML = `
     <div class="section-title">
       <h3>Notificaciones internas</h3>
-      <small>Crear avisos para el equipo administrativo y de apoyo.</small>
+      <small>Avisos para el equipo administrativo y de apoyo.</small>
     </div>
 
     <form id="superNotificationForm" class="superadmin-notification-grid">
@@ -346,25 +474,8 @@ function ensureNotificationsPanel() {
     </div>
   `;
 
-  summary.appendChild(panel);
+  usersTab.appendChild(panel);
   document.getElementById('superNotificationForm')?.addEventListener('submit', saveNotification);
-}
-
-function ensureUsersMetrics() {
-  const usersTab = document.getElementById('adminUsersTab');
-  if (!usersTab || document.getElementById('superadminUsersMetrics')) return;
-
-  const metrics = document.createElement('div');
-  metrics.id = 'superadminUsersMetrics';
-  metrics.className = 'superadmin-user-metrics admin-mini-metrics';
-  metrics.innerHTML = `
-    <span id="superUsersRegistered">0 registrados</span>
-    <span id="superUsersActive">0 activos</span>
-    <span id="superUsersInactive">0 sin actividad reciente</span>
-  `;
-
-  const list = document.getElementById('adminCleanUsers');
-  usersTab.insertBefore(metrics, list || null);
 }
 
 function getFilterValues() {
@@ -393,12 +504,10 @@ function filteredIncidents() {
     const zoneSource = normalize(incidentZone(report));
     const dateMs = millis(incidentDate(report));
 
-    const matchesSearch = !filters.search || searchSource.includes(filters.search);
-    const matchesStatus = filters.status === 'todos' || statusKey(report.estado) === filters.status;
-    const matchesZone = !filters.zone || zoneSource.includes(filters.zone);
-    const matchesDate = (!fromMs && filters.to === '') || (dateMs && dateMs >= fromMs && dateMs <= toMs);
-
-    return matchesSearch && matchesStatus && matchesZone && matchesDate;
+    return (!filters.search || searchSource.includes(filters.search))
+      && (filters.status === 'todos' || statusKey(report.estado) === filters.status)
+      && (!filters.zone || zoneSource.includes(filters.zone))
+      && ((!fromMs && filters.to === '') || (dateMs && dateMs >= fromMs && dateMs <= toMs));
   });
 }
 
@@ -433,7 +542,6 @@ function clearFilters() {
 
   const status = document.getElementById('superIncidentStatus');
   if (status) status.value = 'todos';
-
   renderFilteredIncidents();
 }
 
@@ -505,8 +613,7 @@ async function refreshFastCounts() {
     setText('metricUsersCount', users.data().count);
     setText('metricActiveAdmins', activeAdmins.data().count);
 
-    const cancelledCard = document.getElementById('metricCancelledIncidents');
-    if (!cancelledCard && document.getElementById('adminMetricsGrid')) {
+    if (!document.getElementById('metricCancelledIncidents') && document.getElementById('adminMetricsGrid')) {
       document.getElementById('adminMetricsGrid').insertAdjacentHTML('beforeend', `
         <article class="admin-metric-card">
           <span class="admin-metric-icon">⚫</span>
@@ -531,17 +638,16 @@ function subscribeAudit() {
     renderAudit();
   }, error => {
     console.error('No se pudo sincronizar auditoría:', error);
-    const list = document.getElementById('superadminMovementList');
-    if (list) list.innerHTML = '<div class="superadmin-empty">No se pudo cargar el historial de cambios.</div>';
+    const history = document.getElementById('adminAccessHistory');
+    if (history) history.innerHTML = '<div class="superadmin-empty">No se pudo cargar el historial de cambios.</div>';
   });
 }
 
 function renderAudit() {
-  const list = document.getElementById('superadminMovementList');
   const history = document.getElementById('adminAccessHistory');
-  if (!list && !history) return;
+  if (!history) return;
 
-  const html = auditCache.length
+  history.innerHTML = auditCache.length
     ? auditCache.slice(0, 30).map(item => `
       <div class="admin-live-item">
         <b>🕘 ${escapeHtml(item.accion || 'Cambio registrado')}</b>
@@ -550,9 +656,37 @@ function renderAudit() {
       </div>
     `).join('')
     : '<div class="superadmin-empty">No hay historial de cambios registrado todavía.</div>';
+}
 
-  if (list) list.innerHTML = html;
-  if (history) history.innerHTML = html;
+function showAdminHistory(email) {
+  const rows = auditCache.filter(item => normalize(item.correo) === normalize(email));
+  const history = document.getElementById('adminAccessHistory');
+  if (!history) return;
+
+  history.innerHTML = rows.length
+    ? rows.map(item => `
+      <div class="admin-live-item">
+        <b>${escapeHtml(item.accion || 'Cambio registrado')}</b>
+        <small>${escapeHtml(email)} · ${formatDate(item.fecha)}</small>
+      </div>
+    `).join('')
+    : `<div class="superadmin-empty">No hay historial registrado para ${escapeHtml(email)}.</div>`;
+
+  localStorage.setItem('superadminActivePanelTab', 'admins');
+  localStorage.setItem('superadminActiveCrudTab', 'history');
+  applyPanelTab('admins');
+  applyCrudTab('history');
+}
+
+function addHistoryButtonsToAdminRows() {
+  document.querySelectorAll('[data-admin-edit]').forEach(button => {
+    const row = button.closest('.admin-live-item');
+    const email = button.dataset.adminEdit;
+    if (!row || row.querySelector(`[data-super-admin-history="${CSS.escape(email)}"]`)) return;
+
+    const actions = row.querySelector('.dual-actions') || row;
+    actions.insertAdjacentHTML('beforeend', `<button type="button" data-super-admin-history="${escapeHtml(email)}">Ver historial</button>`);
+  });
 }
 
 function subscribeNotifications() {
@@ -628,43 +762,32 @@ function renderUserMetrics() {
   setText('superUsersInactive', `${Math.max(usersCache.length - active, 0)} sin actividad reciente`);
 }
 
-function addHistoryButtonsToAdminRows() {
-  document.querySelectorAll('[data-admin-edit]').forEach(button => {
-    const row = button.closest('.admin-live-item');
-    const email = button.dataset.adminEdit;
-    if (!row || row.querySelector(`[data-super-admin-history="${CSS.escape(email)}"]`)) return;
-
-    const actions = row.querySelector('.dual-actions') || row;
-    actions.insertAdjacentHTML('beforeend', `<button type="button" data-super-admin-history="${escapeHtml(email)}">Ver historial</button>`);
-  });
-}
-
-function showAdminHistory(email) {
-  const rows = auditCache.filter(item => normalize(item.correo) === normalize(email));
-  const history = document.getElementById('adminAccessHistory') || document.getElementById('superadminMovementList');
-  if (!history) return;
-
-  history.innerHTML = rows.length
-    ? rows.map(item => `
-      <div class="admin-live-item">
-        <b>${escapeHtml(item.accion || 'Cambio registrado')}</b>
-        <small>${escapeHtml(email)} · ${formatDate(item.fecha)}</small>
-      </div>
-    `).join('')
-    : `<div class="superadmin-empty">No hay historial registrado para ${escapeHtml(email)}.</div>`;
-
-  document.querySelector('[data-admin-crud-tab="history"]')?.click();
-}
-
 function bindGlobalEvents() {
   if (window.__superadminEnhancementEvents) return;
   window.__superadminEnhancementEvents = true;
 
   document.addEventListener('click', event => {
+    const panelTab = event.target.closest('[data-admin-tab]');
+    if (panelTab) {
+      localStorage.setItem('superadminActivePanelTab', panelTab.dataset.adminTab || 'summary');
+      setTimeout(() => {
+        keepPanelClean();
+        if (panelTab.dataset.adminTab === 'incidents') renderFilteredIncidents();
+      }, 120);
+      return;
+    }
+
+    const crudTab = event.target.closest('[data-admin-crud-tab]');
+    if (crudTab) {
+      localStorage.setItem('superadminActiveCrudTab', crudTab.dataset.adminCrudTab || 'list');
+      setTimeout(() => applyCrudTab(crudTab.dataset.adminCrudTab), 120);
+      return;
+    }
+
     const history = event.target.closest('[data-super-admin-history]');
     if (history) showAdminHistory(history.dataset.superAdminHistory);
 
-    if (event.target.closest('[data-admin-tab], [data-admin-crud-tab], [data-go], .bottom-nav button')) {
+    if (event.target.closest('[data-go], .bottom-nav button')) {
       setTimeout(startSuperadminEnhancements, 350);
     }
   });
@@ -676,9 +799,9 @@ export function startSuperadminEnhancements() {
   document.body.classList.add('superadmin-enhanced');
   injectStyle();
   ensureIncidentTools();
-  ensureMovementPanel();
-  ensureNotificationsPanel();
   ensureUsersMetrics();
+  ensureNotificationsPanel();
+  keepPanelClean();
   bindGlobalEvents();
   subscribeAudit();
   subscribeNotifications();
@@ -690,12 +813,25 @@ export function startSuperadminEnhancements() {
   renderUserMetrics();
   addHistoryButtonsToAdminRows();
 
+  if (!cleanObserver) {
+    cleanObserver = new MutationObserver(() => keepPanelClean());
+    cleanObserver.observe(document.body, { childList: true, subtree: true });
+  }
+
   if (!refreshTimer) {
     refreshTimer = setInterval(() => {
       setText('superIncidentSync', syncText());
       refreshFastCounts();
       addHistoryButtonsToAdminRows();
+      keepPanelClean();
     }, 60000);
+  }
+
+  if (!cleanTimer) {
+    cleanTimer = setInterval(() => {
+      keepPanelClean();
+      addHistoryButtonsToAdminRows();
+    }, 1800);
   }
 }
 
@@ -704,11 +840,16 @@ export function stopSuperadminEnhancements() {
   if (unsubscribeNotifications) unsubscribeNotifications();
   if (unsubscribeUsers) unsubscribeUsers();
   if (refreshTimer) clearInterval(refreshTimer);
+  if (cleanTimer) clearInterval(cleanTimer);
+  cleanObserver?.disconnect();
 
   unsubscribeAudit = null;
   unsubscribeNotifications = null;
   unsubscribeUsers = null;
   refreshTimer = null;
+  cleanTimer = null;
+  cleanObserver = null;
+  document.body.classList.remove('superadmin-enhanced');
 }
 
 window.startSuperadminEnhancements = startSuperadminEnhancements;
