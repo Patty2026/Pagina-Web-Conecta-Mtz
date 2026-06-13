@@ -93,6 +93,11 @@ function cleanAdminNavigation() {
 }
 
 function cleanAdminActionCards() {
+  const title = document.querySelector('#adminScreen h3');
+  if (title && title.textContent.toLowerCase().includes('acciones')) {
+    title.textContent = 'Panel administrativo';
+  }
+
   document.querySelectorAll('#adminScreen .quick-grid button').forEach(button => {
     const text = button.textContent.toLowerCase();
 
@@ -109,6 +114,7 @@ function cleanAdminActionCards() {
     if (text.includes('administrador')) {
       button.dataset.adminTab = 'admins';
       button.setAttribute('data-superadmin-only', '');
+      button.innerHTML = '👥<span>Administradores</span>';
     }
   });
 }
@@ -144,58 +150,70 @@ function ensurePanel() {
     <section id="adminManagersTab" class="admin-clean-tab" style="display:none" data-superadmin-only>
       <div class="section-title">
         <h3>Administradores</h3>
-        <small>CRUD exclusivo de Superadmin: crear, consultar, editar, activar/desactivar y auditar accesos.</small>
+        <small>Gestiona administradores desde una sola ventana.</small>
       </div>
 
-      <form id="adminCleanForm" class="app-form admin-crud-form">
-        <input id="adminEditMode" type="hidden" value="create">
+      <div class="tabs admin-crud-tabs">
+        <button class="active" type="button" data-admin-crud-tab="list">Lista</button>
+        <button type="button" data-admin-crud-tab="form">Crear / editar</button>
+        <button type="button" data-admin-crud-tab="history">Historial</button>
+      </div>
 
-        <label>Correo</label>
-        <input id="adminCleanEmail" type="email" placeholder="admin@correo.com" required>
-
-        <label>Nombre</label>
-        <input id="adminCleanName" type="text" placeholder="Nombre del administrador" required>
-
-        <label>Teléfono</label>
-        <input id="adminCleanPhone" type="tel" placeholder="Ej. 2321234567">
-
-        <label>Rol</label>
-        <select id="adminCleanRole">
-          <option value="Administrador">Administrador básico</option>
-          <option value="Superadmin">Superadmin</option>
-        </select>
-
-        <label>Estado</label>
-        <select id="adminCleanStatus">
-          <option value="Activo">Activo</option>
-          <option value="Inactivo">Inactivo</option>
-        </select>
-
-        <label>Área o responsabilidad</label>
-        <input id="adminCleanArea" type="text" placeholder="Ej. Seguimiento de incidencias">
-
-        <label>Observaciones</label>
-        <textarea id="adminCleanNotes" placeholder="Notas internas del administrador"></textarea>
-
-        <div class="dual-actions">
-          <button class="main-btn" type="submit" id="adminCleanSubmit">Guardar administrador</button>
-          <button type="button" id="adminCleanCancelEdit">Limpiar</button>
+      <section id="adminCrudList" class="admin-crud-section">
+        <div class="section-title">
+          <h3>Lista de administradores</h3>
+          <small id="adminManagersCount">0 registrados</small>
         </div>
+        <div id="adminCleanManagers" class="admin-live-list"><small>Cargando administradores...</small></div>
+      </section>
 
-        <small id="adminCleanMessage"></small>
-      </form>
+      <section id="adminCrudForm" class="admin-crud-section" style="display:none">
+        <form id="adminCleanForm" class="app-form admin-crud-form">
+          <input id="adminEditMode" type="hidden" value="create">
 
-      <div class="section-title">
-        <h3>Lista de administradores</h3>
-        <small id="adminManagersCount">0 registrados</small>
-      </div>
-      <div id="adminCleanManagers" class="admin-live-list"><small>Cargando administradores...</small></div>
+          <label>Correo</label>
+          <input id="adminCleanEmail" type="email" placeholder="admin@correo.com" required>
 
-      <div class="section-title">
-        <h3>Historial de accesos y acciones</h3>
-        <small>Último acceso y cambios realizados.</small>
-      </div>
-      <div id="adminAccessHistory" class="admin-live-list"><small>Sin historial todavía.</small></div>
+          <label>Nombre</label>
+          <input id="adminCleanName" type="text" placeholder="Nombre del administrador" required>
+
+          <label>Teléfono</label>
+          <input id="adminCleanPhone" type="tel" placeholder="Ej. 2321234567">
+
+          <label>Rol</label>
+          <select id="adminCleanRole">
+            <option value="Administrador">Administrador básico</option>
+            <option value="Superadmin">Superadmin</option>
+          </select>
+
+          <label>Estado</label>
+          <select id="adminCleanStatus">
+            <option value="Activo">Activo</option>
+            <option value="Inactivo">Inactivo</option>
+          </select>
+
+          <label>Área o responsabilidad</label>
+          <input id="adminCleanArea" type="text" placeholder="Ej. Seguimiento de incidencias">
+
+          <label>Observaciones</label>
+          <textarea id="adminCleanNotes" placeholder="Notas internas del administrador"></textarea>
+
+          <div class="dual-actions">
+            <button class="main-btn" type="submit" id="adminCleanSubmit">Guardar administrador</button>
+            <button type="button" id="adminCleanCancelEdit">Limpiar</button>
+          </div>
+
+          <small id="adminCleanMessage"></small>
+        </form>
+      </section>
+
+      <section id="adminCrudHistory" class="admin-crud-section" style="display:none">
+        <div class="section-title">
+          <h3>Historial de accesos y acciones</h3>
+          <small>Último acceso y cambios realizados.</small>
+        </div>
+        <div id="adminAccessHistory" class="admin-live-list"><small>Sin historial todavía.</small></div>
+      </section>
     </section>
   `;
 
@@ -208,6 +226,23 @@ function ensurePanel() {
   applyVisibility();
 }
 
+function showCrudSection(sectionName) {
+  const map = {
+    list: 'adminCrudList',
+    form: 'adminCrudForm',
+    history: 'adminCrudHistory'
+  };
+
+  Object.entries(map).forEach(([key, id]) => {
+    const section = document.getElementById(id);
+    if (section) section.style.display = key === sectionName ? '' : 'none';
+  });
+
+  document.querySelectorAll('[data-admin-crud-tab]').forEach(button => {
+    button.classList.toggle('active', button.dataset.adminCrudTab === sectionName);
+  });
+}
+
 function handlePanelClick(event) {
   const tab = event.target.closest('[data-admin-tab]');
   if (tab) {
@@ -215,11 +250,21 @@ function handlePanelClick(event) {
     document.querySelectorAll('[data-admin-tab]').forEach(button => button.classList.toggle('active', button === tab));
     document.getElementById('adminIncidentsTab').style.display = tab.dataset.adminTab === 'incidents' ? '' : 'none';
     document.getElementById('adminManagersTab').style.display = tab.dataset.adminTab === 'admins' ? '' : 'none';
+    if (tab.dataset.adminTab === 'admins') showCrudSection('list');
+    return;
+  }
+
+  const crudTab = event.target.closest('[data-admin-crud-tab]');
+  if (crudTab) {
+    showCrudSection(crudTab.dataset.adminCrudTab);
     return;
   }
 
   const edit = event.target.closest('[data-admin-edit]');
-  if (edit) loadAdminToForm(edit.dataset.adminEdit);
+  if (edit) {
+    loadAdminToForm(edit.dataset.adminEdit);
+    showCrudSection('form');
+  }
 }
 
 function applyVisibility() {
@@ -418,6 +463,7 @@ async function saveAdmin(event) {
 
   setText('adminCleanMessage', editingAdminEmail ? 'Administrador actualizado correctamente.' : 'Administrador creado correctamente.');
   clearAdminForm();
+  showCrudSection('list');
 }
 
 document.addEventListener('click', async event => {
