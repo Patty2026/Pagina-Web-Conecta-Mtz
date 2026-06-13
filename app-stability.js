@@ -9,11 +9,14 @@
 (function () {
   const MODULE_SCRIPTS = [
     './navigation-history.js',
+    './support-role-isolation.js',
+    './profile-editor.js',
     './admin-dashboard.js',
     './admin-map.js',
     './superadmin-module.js',
     './admin-panel-summary-clean.js',
     './admin-basic-restrictions.js',
+    './superadmin-visibility-fix.js',
     './admin-map-single-window.js'
   ];
 
@@ -31,9 +34,21 @@
     document.body.appendChild(script);
   }
 
+  function isAdminSession() {
+    return Boolean(window.isAdminUser?.());
+  }
+
+  function isRegularOrSupportSession() {
+    return !isAdminSession();
+  }
+
   function loadMissingModules() {
     MODULE_SCRIPTS.forEach(src => {
-      const isModule = src.includes('admin-dashboard') || src.includes('admin-map') || src.includes('superadmin-module');
+      const isModule = src.includes('admin-dashboard')
+        || src.includes('admin-map')
+        || src.includes('superadmin-module')
+        || src.includes('profile-editor');
+
       loadScript(src, isModule ? 'module' : 'text/javascript');
     });
   }
@@ -46,39 +61,63 @@
     });
   }
 
+  function runSupportIsolation() {
+    window.applySupportRoleIsolation?.();
+  }
+
+  function runProfileEditor() {
+    window.startProfileEditor?.();
+  }
+
+  function runAdminModules() {
+    if (!isAdminSession()) {
+      runSupportIsolation();
+      return;
+    }
+
+    window.startAdminRealtimePanel?.();
+    window.startSuperadminModule?.();
+    window.cleanAdminPanelSummary?.();
+    window.applyAdminBasicRestrictions?.();
+    window.applySuperadminVisibilityFix?.();
+    window.enforceSingleMapWindow?.();
+  }
+
   function refreshMapsAfterNavigation() {
     document.addEventListener('click', event => {
       const target = event.target.closest('[data-go]');
       if (!target) return;
 
       setTimeout(() => {
-        window.startAdminMap?.();
-        window.startSuperadminModule?.();
-        window.cleanAdminPanelSummary?.();
-        window.applyAdminBasicRestrictions?.();
-        window.enforceSingleMapWindow?.();
+        runSupportIsolation();
+        runProfileEditor();
+
+        if (isAdminSession()) {
+          window.startAdminMap?.();
+          runAdminModules();
+        }
       }, 450);
     });
   }
 
-  function syncAdminModules() {
+  function syncModules() {
     setInterval(() => {
-      if (!window.isAdminUser?.()) return;
+      runSupportIsolation();
+      runProfileEditor();
+
+      if (!isAdminSession()) return;
 
       const adminScreen = document.getElementById('adminScreen');
       const mapScreen = document.getElementById('mapScreen');
 
       if (adminScreen?.classList.contains('active')) {
-        window.startAdminRealtimePanel?.();
-        window.startSuperadminModule?.();
-        window.cleanAdminPanelSummary?.();
-        window.applyAdminBasicRestrictions?.();
-        window.enforceSingleMapWindow?.();
+        runAdminModules();
       }
 
       if (mapScreen?.classList.contains('active')) {
         window.startAdminMap?.();
         window.applyAdminBasicRestrictions?.();
+        window.applySuperadminVisibilityFix?.();
         window.enforceSingleMapWindow?.();
       }
     }, 1800);
@@ -88,6 +127,12 @@
     loadMissingModules();
     fixExternalButtons();
     refreshMapsAfterNavigation();
-    syncAdminModules();
+    syncModules();
+
+    setTimeout(() => {
+      runSupportIsolation();
+      runProfileEditor();
+      runAdminModules();
+    }, 1200);
   });
 })();
