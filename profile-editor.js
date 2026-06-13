@@ -49,8 +49,8 @@ function ensureProfileEditor() {
   card.innerHTML = `
     <h3>Datos del perfil</h3>
     <form id="profileEditorForm" class="app-form">
-      <label>Nombre para mostrar</label>
-      <input id="profileEditName" type="text" placeholder="Tu nombre" maxlength="80">
+      <label>Nombre</label>
+      <input id="profileEditName" type="text" placeholder="Nombre completo" maxlength="80">
 
       <label>Correo electrónico</label>
       <input id="profileEditEmail" type="email" disabled>
@@ -58,12 +58,15 @@ function ensureProfileEditor() {
       <label>Rol</label>
       <input id="profileEditRole" type="text" disabled>
 
-      <label>Número de teléfono</label>
+      <label>Num. de teléfono</label>
       <input id="profileEditPhone" type="tel" placeholder="Ej. 232 123 4567" maxlength="20">
 
-      <label id="profileOccupationLabel">Ocupación, oficio o forma en que puedes apoyar</label>
-      <textarea id="profileEditOccupation" placeholder="Ej. Electricista, plomero, apoyo comunitario, mantenimiento, limpieza, gestión vecinal..." maxlength="280"></textarea>
-      <small id="profileOccupationHelp">Esta información ayuda a otros usuarios a conocer quién atiende o apoya sus incidencias.</small>
+      <label>Ocupación</label>
+      <input id="profileEditOccupation" type="text" placeholder="Ej. Electricista, plomero, estudiante, comerciante" maxlength="90">
+
+      <label id="profileSupportDescriptionLabel">Descripción del Apoyo</label>
+      <textarea id="profileEditSupportDescription" placeholder="Describe brevemente cómo puedes apoyar o qué servicio/oficio puedes brindar." maxlength="280"></textarea>
+      <small id="profileSupportDescriptionHelp">Esta información ayuda a otros usuarios a conocer quién atiende o apoya sus incidencias.</small>
 
       <label>Estado</label>
       <input id="profileEditStatus" type="text" disabled>
@@ -99,20 +102,17 @@ function setAvatar(name = 'U') {
   if (avatar) avatar.textContent = String(name || 'U').trim().charAt(0).toUpperCase() || 'U';
 }
 
-function updateOccupationVisibility(role = '') {
-  const label = document.getElementById('profileOccupationLabel');
-  const help = document.getElementById('profileOccupationHelp');
-  const field = document.getElementById('profileEditOccupation');
+function updateSupportDescriptionHelp(role = '') {
+  const help = document.getElementById('profileSupportDescriptionHelp');
+  const field = document.getElementById('profileEditSupportDescription');
 
-  if (!label || !help || !field) return;
+  if (!help || !field) return;
 
   if (isSupportRole(role)) {
-    label.textContent = 'Breve descripción de tu ocupación u oficio de apoyo';
-    field.placeholder = 'Ej. Soy electricista y puedo apoyar con alumbrado público, revisión básica de instalaciones o reportes comunitarios.';
+    field.placeholder = 'Ej. Puedo apoyar con alumbrado, fugas de agua, limpieza, áreas verdes o gestión vecinal.';
     help.textContent = 'Esta descripción podrá orientar a los usuarios cuando atiendas sus incidentes.';
   } else {
-    label.textContent = 'Breve descripción de ocupación o apoyo que puedes brindar';
-    field.placeholder = 'Ej. Estudiante, comerciante, vecino, voluntario comunitario o algún oficio que puedas apoyar.';
+    field.placeholder = 'Describe brevemente tu apoyo comunitario, experiencia u oficio.';
     help.textContent = 'Este campo es opcional. Ayuda a conocer mejor tu perfil dentro de la comunidad.';
   }
 }
@@ -146,7 +146,7 @@ async function loadProfileData(force = false) {
         ...stored,
         correo: user.email || stored.correo,
         nombre: stored.nombre || user.email?.split('@')[0] || 'Usuario',
-        telefono: stored.telefono || '',
+        numeroTelefono: stored.numeroTelefono || '',
         ocupacion: stored.ocupacion || '',
         descripcionApoyo: stored.descripcionApoyo || '',
         rol: role,
@@ -162,8 +162,9 @@ async function loadProfileData(force = false) {
   const displayName = profile.nombre || profile.correo?.split('@')[0] || 'Usuario';
   const email = profile.correo || profile.email || user?.email || '';
   const status = profile.estado || 'Activo';
-  const phone = profile.telefono || profile.numeroTelefono || '';
-  const occupation = profile.descripcionApoyo || profile.ocupacion || profile.oficio || '';
+  const phone = profile.numeroTelefono || profile.telefono || '';
+  const occupation = profile.ocupacion || profile.oficio || '';
+  const supportDescription = profile.descripcionApoyo || '';
   const resolvedRole = role || profile.rol || 'Usuario';
 
   setText('profileName', displayName);
@@ -175,16 +176,17 @@ async function loadProfileData(force = false) {
   setField('profileEditRole', resolvedRole);
   setField('profileEditPhone', phone);
   setField('profileEditOccupation', occupation);
+  setField('profileEditSupportDescription', supportDescription);
   setField('profileEditStatus', status);
-  updateOccupationVisibility(resolvedRole);
+  updateSupportDescriptionHelp(resolvedRole);
 
   saveStoredProfile({
     ...profile,
     nombre: displayName,
     correo: email,
-    telefono: phone,
+    numeroTelefono: phone,
     ocupacion: occupation,
-    descripcionApoyo: occupation,
+    descripcionApoyo: supportDescription,
     rol: resolvedRole,
     estado: status
   });
@@ -203,6 +205,7 @@ async function saveProfileChanges(event) {
   const name = document.getElementById('profileEditName')?.value?.trim();
   const phone = document.getElementById('profileEditPhone')?.value?.trim() || '';
   const occupation = document.getElementById('profileEditOccupation')?.value?.trim() || '';
+  const supportDescription = document.getElementById('profileEditSupportDescription')?.value?.trim() || '';
 
   if (!name) {
     if (message) message.textContent = 'Escribe un nombre válido.';
@@ -219,10 +222,9 @@ async function saveProfileChanges(event) {
     correo: email,
     rol: role,
     estado: status,
-    telefono: phone,
     numeroTelefono: phone,
     ocupacion: occupation,
-    descripcionApoyo: occupation
+    descripcionApoyo: supportDescription
   };
 
   if (!user?.uid) {
@@ -246,7 +248,7 @@ async function saveProfileChanges(event) {
   setText('profileName', name);
   setText('profileRole', `${role} activo`);
   setAvatar(name);
-  updateOccupationVisibility(role);
+  updateSupportDescriptionHelp(role);
 
   if (message) message.textContent = 'Perfil actualizado correctamente.';
 
