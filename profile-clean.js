@@ -8,6 +8,7 @@ import {
 
 let profileLoadedOnceForUid = null;
 let userIsEditingProfile = false;
+let profileSaving = false;
 
 function setText(id, value) {
   const element = document.getElementById(id);
@@ -27,6 +28,29 @@ function saveProfileToStorage(profile) {
   localStorage.setItem('conectaPerfil', JSON.stringify({ ...stored, ...profile }));
 }
 
+function isUnsafeText(value = '') {
+  return /<\s*script|javascript:|onerror\s*=|onclick\s*=|<\s*iframe|<\s*object|<\s*embed/i.test(String(value));
+}
+
+function validateProfileData(data) {
+  const phoneRegex = /^[0-9\s()+\-.]{7,20}$/;
+  const nameRegex = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s.'-]{2,60}$/;
+
+  if (!nameRegex.test(data.nombre)) {
+    return 'El nombre debe tener de 2 a 60 caracteres y solo letras.';
+  }
+
+  if (data.numeroTelefono && !phoneRegex.test(data.numeroTelefono)) {
+    return 'El número de teléfono no tiene un formato válido.';
+  }
+
+  if ([data.nombre, data.numeroTelefono, data.ocupacion, data.descripcionApoyo].some(isUnsafeText)) {
+    return 'El texto contiene caracteres o código no permitido.';
+  }
+
+  return '';
+}
+
 function ensureProfileDataPanel() {
   const profileScreen = document.getElementById('profileScreen');
   if (!profileScreen) return;
@@ -34,7 +58,7 @@ function ensureProfileDataPanel() {
   const oldEditor = document.getElementById('profileCleanForm')?.closest('.profile-editor-card');
   if (oldEditor) oldEditor.remove();
 
-  let panelButton = profileScreen.querySelector('[data-profile-panel="panelData"], [data-profile-panel="profileDataPanel"]');
+  let panelButton = profileScreen.querySelector('[data-profile-panel="profileDataPanel"]');
   let panel = document.getElementById('profileDataPanel');
 
   if (!panelButton) {
@@ -58,7 +82,7 @@ function ensureProfileDataPanel() {
       <div class="panel-header">
         <div>
           <b>Mis datos</b>
-          <small>Actualiza tu información personal y de apoyo.</small>
+          <small>Actualiza tu información directamente en la base de datos.</small>
         </div>
       </div>
 
@@ -75,7 +99,7 @@ function ensureProfileDataPanel() {
         <label>Descripción del Apoyo</label>
         <textarea id="profileCleanSupport" placeholder="Describe cómo puedes apoyar o qué servicio/oficio brindas."></textarea>
 
-        <button class="main-btn" type="submit">Guardar cambios</button>
+        <button class="main-btn" id="profileCleanSaveBtn" type="submit">Guardar cambios</button>
         <small id="profileCleanMessage"></small>
       </form>
     `;
@@ -98,9 +122,10 @@ function ensureProfileDataPanel() {
   form?.addEventListener('submit', saveProfile);
 
   form?.querySelectorAll('input, textarea').forEach(field => {
-    field.addEventListener('input', () => {
+    field.oninput = () => {
       userIsEditingProfile = true;
-    });
+      setText('profileCleanMessage', '');
+    };
   });
 }
 
@@ -112,14 +137,18 @@ function openProfilePanel(panelId) {
     item.classList.toggle('open', item.id === panelId);
     item.style.display = item.id === panelId ? 'block' : 'none';
   });
+
+  if (panelId === 'profileDataPanel') {
+    loadProfile({ forceFill: !userIsEditingProfile });
+  }
 }
 
 async function loadProfile({ forceFill = false } = {}) {
   const user = auth.currentUser;
-  if (!user) return;
+  if (!user || profileSaving) return;
 
   const sameUserAlreadyLoaded = profileLoadedOnceForUid === user.uid;
-  const shouldFillInputs = forceFill || !sameUserAlreadyLoaded || !userIsEditingProfile;
+  const shouldFillInputs = forceFill || !sameUserAlreadyLoaded;
 
   const stored = getProfileFromStorage();
   let data = { ...stored, correo: user.email };
@@ -140,7 +169,7 @@ async function loadProfile({ forceFill = false } = {}) {
   const avatar = document.querySelector('#profileScreen .avatar');
   if (avatar) avatar.textContent = name.slice(0, 1).toUpperCase();
 
-  if (shouldFillInputs) {
+  if (shouldFillInputs && !userIsEditingProfile) {
     const nameInput = document.getElementById('profileCleanName');
     const phoneInput = document.getElementById('profileCleanPhone');
     const occupationInput = document.getElementById('profileCleanOccupation');
@@ -160,7 +189,10 @@ async function saveProfile(event) {
   event.preventDefault();
 
   const user = auth.currentUser;
-  if (!user) return;
+  if (!user || profileSaving) return;
+
+  const saveButton = document.getElementById('profileCleanSaveBtn');
+  const message = document.getElementById('profileCleanMessage');
 
   const data = {
     nombre: document.getElementById('profileCleanName')?.value?.trim() || user.email.split('@')[0],
@@ -168,14 +200,46 @@ async function saveProfile(event) {
     ocupacion: document.getElementById('profileCleanOccupation')?.value?.trim() || '',
     descripcionApoyo: document.getElementById('profileCleanSupport')?.value?.trim() || '',
     correo: user.email,
+    uid: user.uid,
     fechaActualizacion: serverTimestamp()
   };
 
-  await setDoc(doc(db, 'usuarios', user.uid), data, { merge: true });
-  saveProfileToStorage(data);
-  userIsEditingProfile = false;
-  await loadProfile({ forceFill: true });
-  setText('profileCleanMessage', 'Datos actualizados correctamente.');
+  const validationError = validateProfileData(data);
+  if (validationError) {
+    if (message) message.textContent = validationError;
+    return;
+  }
+
+  try {
+    profileSaving = true;
+    if (saveButton) {
+      saveButton.disabled = true;
+      saveButton.textContent = 'Guardando...';
+    }
+
+    await setDoc(doc(db, 'usuarios', user.uid), data, { merge: true });
+
+    saveProfileToStorage({
+      ...data,
+      fechaActualizacion: new Date().toISOString()
+    });
+
+    userIsEditingProfile = false;
+    profileLoadedOnceForUid = null;
+
+    await loadProfile({ forceFill: true });
+
+    if (message) message.textContent = 'Datos guardados en la base de datos correctamente.';
+  } catch (error) {
+    console.error('No se pudieron guardar los datos:', error);
+    if (message) message.textContent = 'No se pudo guardar. Revisa tu conexión o permisos de Firestore.';
+  } finally {
+    profileSaving = false;
+    if (saveButton) {
+      saveButton.disabled = false;
+      saveButton.textContent = 'Guardar cambios';
+    }
+  }
 }
 
 export function startProfileClean() {
