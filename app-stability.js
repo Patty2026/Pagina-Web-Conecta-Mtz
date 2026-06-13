@@ -60,7 +60,7 @@
     if (hasScript(src)) return;
 
     const script = document.createElement('script');
-    script.src = `${src}?v=202606-role-clean`;
+    script.src = `${src}?v=202606-realtime-clean`;
     script.type = type;
     script.defer = true;
     document.body.appendChild(script);
@@ -69,6 +69,7 @@
   function loadBaseModules() {
     loadScript('./navigation-history.js');
     loadScript('./profile-clean.js', 'module');
+    loadScript('./realtime-sync.js', 'module');
   }
 
   function loadAdminOnlyModules() {
@@ -114,6 +115,7 @@
 
   function runModules() {
     window.startProfileClean?.();
+    window.startRealtimeSync?.();
 
     if (isRealAdmin()) {
       window.startAdminClean?.();
