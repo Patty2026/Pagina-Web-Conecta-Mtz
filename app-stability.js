@@ -1,23 +1,15 @@
 /* =========================================================
-   ConectaMartínez - Estabilidad general de la app
+   ConectaMartínez - Núcleo ligero de estabilidad
    ---------------------------------------------------------
-   Corrige carga de módulos, navegación móvil, mapas y
-   conexión administrativa en tiempo real sin tocar el HTML
-   minificado principal.
+   Carga únicamente los módulos consolidados para mantener la
+   app fluida, ordenada y sin duplicar paneles administrativos.
    ========================================================= */
 
 (function () {
-  const MODULE_SCRIPTS = [
+  const CLEAN_MODULES = [
     './navigation-history.js',
-    './support-role-isolation.js',
-    './profile-editor.js',
-    './admin-dashboard.js',
-    './admin-map.js',
-    './superadmin-module.js',
-    './admin-panel-summary-clean.js',
-    './admin-basic-restrictions.js',
-    './superadmin-visibility-fix.js',
-    './admin-map-single-window.js'
+    './admin-clean.js',
+    './profile-clean.js'
   ];
 
   function hasScript(src) {
@@ -28,32 +20,32 @@
     if (hasScript(src)) return;
 
     const script = document.createElement('script');
-    script.src = src;
+    script.src = `${src}?v=202606-clean-core`;
     script.type = type;
     script.defer = true;
     document.body.appendChild(script);
+  }
+
+  function loadCleanModules() {
+    CLEAN_MODULES.forEach(src => {
+      const isModule = src.includes('admin-clean') || src.includes('profile-clean');
+      loadScript(src, isModule ? 'module' : 'text/javascript');
+    });
   }
 
   function isAdminSession() {
     return Boolean(window.isAdminUser?.());
   }
 
-  function isRegularOrSupportSession() {
-    return !isAdminSession();
+  function runCleanModules() {
+    window.startProfileClean?.();
+
+    if (isAdminSession()) {
+      window.startAdminClean?.();
+    }
   }
 
-  function loadMissingModules() {
-    MODULE_SCRIPTS.forEach(src => {
-      const isModule = src.includes('admin-dashboard')
-        || src.includes('admin-map')
-        || src.includes('superadmin-module')
-        || src.includes('profile-editor');
-
-      loadScript(src, isModule ? 'module' : 'text/javascript');
-    });
-  }
-
-  function fixExternalButtons() {
+  function disableUnimplementedSocialButtons() {
     document.querySelectorAll('.social-row button').forEach(button => {
       button.disabled = true;
       button.title = 'Disponible próximamente';
@@ -61,78 +53,51 @@
     });
   }
 
-  function runSupportIsolation() {
-    window.applySupportRoleIsolation?.();
+  function preventAdminDuplicates() {
+    if (!isAdminSession()) return;
+
+    const adminScreen = document.getElementById('adminScreen');
+    if (!adminScreen) return;
+
+    adminScreen.querySelectorAll('#adminRealtimePanel, #adminWindowsRoot').forEach(element => {
+      element.remove();
+    });
+
+    const cleanRoot = document.getElementById('adminCleanRoot');
+    if (cleanRoot) cleanRoot.style.display = '';
   }
 
-  function runProfileEditor() {
-    window.startProfileEditor?.();
+  function afterNavigation() {
+    setTimeout(() => {
+      preventAdminDuplicates();
+      runCleanModules();
+    }, 350);
   }
 
-  function runAdminModules() {
-    if (!isAdminSession()) {
-      runSupportIsolation();
-      return;
-    }
-
-    window.startAdminRealtimePanel?.();
-    window.startSuperadminModule?.();
-    window.cleanAdminPanelSummary?.();
-    window.applyAdminBasicRestrictions?.();
-    window.applySuperadminVisibilityFix?.();
-    window.enforceSingleMapWindow?.();
-  }
-
-  function refreshMapsAfterNavigation() {
+  function watchNavigation() {
     document.addEventListener('click', event => {
-      const target = event.target.closest('[data-go]');
-      if (!target) return;
-
-      setTimeout(() => {
-        runSupportIsolation();
-        runProfileEditor();
-
-        if (isAdminSession()) {
-          window.startAdminMap?.();
-          runAdminModules();
-        }
-      }, 450);
+      if (event.target.closest('[data-go], .profile-toggle')) {
+        afterNavigation();
+      }
     });
   }
 
-  function syncModules() {
+  function keepAlive() {
     setInterval(() => {
-      runSupportIsolation();
-      runProfileEditor();
-
-      if (!isAdminSession()) return;
-
-      const adminScreen = document.getElementById('adminScreen');
-      const mapScreen = document.getElementById('mapScreen');
-
-      if (adminScreen?.classList.contains('active')) {
-        runAdminModules();
-      }
-
-      if (mapScreen?.classList.contains('active')) {
-        window.startAdminMap?.();
-        window.applyAdminBasicRestrictions?.();
-        window.applySuperadminVisibilityFix?.();
-        window.enforceSingleMapWindow?.();
-      }
-    }, 1800);
+      preventAdminDuplicates();
+      runCleanModules();
+    }, 2500);
   }
 
   window.addEventListener('load', () => {
-    loadMissingModules();
-    fixExternalButtons();
-    refreshMapsAfterNavigation();
-    syncModules();
+    loadCleanModules();
+    disableUnimplementedSocialButtons();
+    watchNavigation();
+    keepAlive();
 
     setTimeout(() => {
-      runSupportIsolation();
-      runProfileEditor();
-      runAdminModules();
+      preventAdminDuplicates();
+      runCleanModules();
     }, 1200);
   });
 })();
