@@ -4,6 +4,7 @@ const ADMIN_EMAILS = ['adminb@gmail.com'];
 let adminGuardInterval = null;
 let adminSessionClosing = false;
 let adminModulesLoaded = false;
+let adminAutoRedirectEnabled = false;
 
 function normalizeEmail(email = '') {
   return String(email).trim().toLowerCase();
@@ -60,6 +61,7 @@ function saveAdminProfile(email, role) {
 
 function clearAdminProfile() {
   adminSessionClosing = true;
+  adminAutoRedirectEnabled = false;
   localStorage.removeItem('conectaPerfil');
   sessionStorage.removeItem('conectaPerfil');
 
@@ -72,13 +74,21 @@ function clearAdminProfile() {
   window.stopAdminMap?.();
 }
 
-function goLoginScreen() {
+function showScreen(screenId) {
   document.querySelectorAll('.screen').forEach(screen => {
     screen.classList.remove('active');
   });
 
-  document.getElementById('loginScreen')?.classList.add('active');
+  document.getElementById(screenId)?.classList.add('active');
   window.scrollTo(0, 0);
+}
+
+function goLoginScreen() {
+  showScreen('loginScreen');
+}
+
+function goSplashScreen() {
+  showScreen('splashScreen');
 }
 
 function applyAdminPanelInfo() {
@@ -141,18 +151,10 @@ function goAdminPanel() {
   const role = getCurrentAdminRole();
   if (!role) return;
 
-  document.querySelectorAll('.screen').forEach(screen => {
-    screen.classList.remove('active');
-  });
-
-  const adminScreen = document.getElementById('adminScreen');
-  if (adminScreen) {
-    adminScreen.classList.add('active');
-    applyAdminPanelInfo();
-    loadAdminModules();
-    window.refreshCleanAdminNav?.();
-    window.scrollTo(0, 0);
-  }
+  showScreen('adminScreen');
+  applyAdminPanelInfo();
+  loadAdminModules();
+  window.refreshCleanAdminNav?.();
 }
 
 function forceAdminPanel() {
@@ -171,6 +173,7 @@ function forceAdminPanel() {
 function activateAdminAfterLogin() {
   adminSessionClosing = false;
   adminModulesLoaded = false;
+  adminAutoRedirectEnabled = true;
 
   [250, 800, 1600, 2800, 4200].forEach(delay => {
     setTimeout(forceAdminPanel, delay);
@@ -215,6 +218,12 @@ function protectAdminActions() {
     if (!nav || !isAdminUser()) return;
 
     const destination = nav.dataset.go;
+
+    if (destination === 'splashScreen' || destination === 'onboardingScreen' || destination === 'loginScreen') {
+      adminAutoRedirectEnabled = false;
+      return;
+    }
+
     const blockedForAdmin = [
       'homeScreen',
       'categoriesScreen',
@@ -239,13 +248,16 @@ function keepAdminOnAdminPanel() {
   if (adminGuardInterval) clearInterval(adminGuardInterval);
 
   adminGuardInterval = setInterval(() => {
-    if (!isAdminUser()) return;
+    if (!adminAutoRedirectEnabled || !isAdminUser()) return;
 
     const active = document.querySelector('.screen.active');
     const allowed = [
       'adminScreen',
       'mapScreen',
-      'profileScreen'
+      'profileScreen',
+      'splashScreen',
+      'onboardingScreen',
+      'loginScreen'
     ];
 
     if (active && !allowed.includes(active.id)) {
@@ -262,6 +274,8 @@ window.applyAdminPanelInfo = applyAdminPanelInfo;
 window.forceAdminPanel = forceAdminPanel;
 window.clearAdminProfile = clearAdminProfile;
 window.loadAdminModules = loadAdminModules;
+window.goSplashScreen = goSplashScreen;
+window.goLoginScreen = goLoginScreen;
 
 window.addEventListener('load', () => {
   const loginForm = document.getElementById('loginForm');
@@ -274,6 +288,7 @@ window.addEventListener('load', () => {
   keepAdminOnAdminPanel();
 
   if (isAdminUser()) {
-    forceAdminPanel();
+    adminAutoRedirectEnabled = false;
+    goSplashScreen();
   }
 });
