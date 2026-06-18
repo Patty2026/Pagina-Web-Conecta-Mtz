@@ -7,10 +7,12 @@ import {
   where
 } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
 
+let unsubscribeAuth = null;
 let unsubscribeProfile = null;
 let unsubscribeReports = null;
 let activeUser = null;
 let liveReports = [];
+let realtimeStarted = false;
 
 const ADMIN_EMAILS = ['adminp@gmail.com', 'adminb@gmail.com'];
 
@@ -33,7 +35,7 @@ function saveStoredProfile(data = {}) {
 
 function getCurrentRole() {
   const stored = getStoredProfile();
-  const email = normalize(activeUser?.email || stored.correo || stored.email);
+  const email = normalize(activeUser?.email || auth.currentUser?.email || stored.correo || stored.email);
   const role = normalize(stored.rol || '');
 
   if (email === 'adminp@gmail.com') return 'superadmin';
@@ -44,7 +46,7 @@ function getCurrentRole() {
 
 function isAdminSession() {
   const stored = getStoredProfile();
-  const email = normalize(activeUser?.email || stored.correo || stored.email);
+  const email = normalize(activeUser?.email || auth.currentUser?.email || stored.correo || stored.email);
   const role = getCurrentRole();
 
   return ADMIN_EMAILS.includes(email)
@@ -64,12 +66,14 @@ function setText(id, value) {
 function fechaMillis(valor) {
   if (!valor) return 0;
   if (typeof valor.toMillis === 'function') return valor.toMillis();
+  if (typeof valor.toDate === 'function') return valor.toDate().getTime();
   if (valor.seconds) return valor.seconds * 1000;
+  if (typeof valor === 'string') return Date.parse(valor) || 0;
   return 0;
 }
 
 function sortReports(reports) {
-  return [...reports].sort((a, b) => fechaMillis(b.fechaRegistro) - fechaMillis(a.fechaRegistro));
+  return [...reports].sort((a, b) => fechaMillis(b.fechaRegistro || b.fecha || b.createdAt) - fechaMillis(a.fechaRegistro || a.fecha || a.createdAt));
 }
 
 function normalizeStatus(status = 'Pendiente') {
@@ -90,6 +94,15 @@ function getCategoryIcon(category = '') {
   return '📌';
 }
 
+function escapeHtml(value = '') {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
 function buildReportCard(report) {
   const status = normalizeStatus(report.estado || 'Pendiente');
   const folio = report.folio || `#${String(report.id || 'INC').slice(0, 8)}`;
@@ -97,11 +110,11 @@ function buildReportCard(report) {
   const desc = report.descripcion || 'Sin descripción';
 
   return `
-    <div class="report-card" data-live-report-id="${report.id}">
+    <div class="report-card" data-live-report-id="${escapeHtml(report.id)}">
       <span class="icon cyan">${getCategoryIcon(tipo)}</span>
       <div>
-        <b>${folio} · ${tipo}</b>
-        <small>${status} · ${desc}</small>
+        <b>${escapeHtml(folio)} · ${escapeHtml(tipo)}</b>
+        <small>${escapeHtml(status)} · ${escapeHtml(desc)}</small>
       </div>
       <span>›</span>
     </div>
@@ -142,10 +155,10 @@ function renderProfileReports() {
     const desc = report.descripcion || 'Sin descripción';
 
     return `
-      <div class="profile-report-item" data-live-profile-report="${report.id}">
+      <div class="profile-report-item" data-live-profile-report="${escapeHtml(report.id)}">
         <span>${getCategoryIcon(tipo)}</span>
-        <div><b>${folio}</b><small>${tipo}</small><small>${desc}</small></div>
-        <span class="mini-status">${status}</span>
+        <div><b>${escapeHtml(folio)}</b><small>${escapeHtml(tipo)}</small><small>${escapeHtml(desc)}</small></div>
+        <span class="mini-status">${escapeHtml(status)}</span>
       </div>
     `;
   }).join('');
@@ -172,8 +185,8 @@ function renderSupportPanel() {
 
         return `
           <div class="support-report-card admin-live-item">
-            <b>${folio} · ${tipo}</b>
-            <small>${status} · ${desc}</small>
+            <b>${escapeHtml(folio)} · ${escapeHtml(tipo)}</b>
+            <small>${escapeHtml(status)} · ${escapeHtml(desc)}</small>
           </div>
         `;
       }).join('')
@@ -205,6 +218,20 @@ function renderLiveData() {
   renderProfileReports();
   renderSupportPanel();
   renderMapInfoOnly();
+}
+
+function stopRealtimeSync() {
+  if (unsubscribeProfile) unsubscribeProfile();
+  if (unsubscribeReports) unsubscribeReports();
+  if (unsubscribeAuth) unsubscribeAuth();
+
+  unsubscribeProfile = null;
+  unsubscribeReports = null;
+  unsubscribeAuth = null;
+  realtimeStarted = false;
+  activeUser = null;
+  liveReports = [];
+  window.conectaLiveReports = liveReports;
 }
 
 function subscribeProfile(user) {
@@ -250,7 +277,14 @@ function subscribeReports(user) {
 }
 
 export function startRealtimeSync() {
-  escucharSesion(user => {
+  if (realtimeStarted) {
+    renderLiveData();
+    return;
+  }
+
+  realtimeStarted = true;
+
+  unsubscribeAuth = escucharSesion(user => {
     activeUser = user || null;
     window.conectaCurrentUser = user || null;
 
@@ -260,18 +294,21 @@ export function startRealtimeSync() {
       unsubscribeProfile = null;
       unsubscribeReports = null;
       liveReports = [];
+      window.conectaLiveReports = liveReports;
       return;
     }
 
     saveStoredProfile({ uid: user.uid, correo: user.email, email: user.email });
     subscribeProfile(user);
-
     setTimeout(() => subscribeReports(user), 250);
   });
 }
 
 window.startRealtimeSync = startRealtimeSync;
+window.stopRealtimeSync = stopRealtimeSync;
+
 window.addEventListener('load', () => setTimeout(startRealtimeSync, 600));
+
 document.addEventListener('click', event => {
   if (event.target.closest('[data-go="profileScreen"], [data-go="mapScreen"], [data-go="supportScreen"], [data-go="homeScreen"], .profile-toggle')) {
     setTimeout(renderLiveData, 300);
