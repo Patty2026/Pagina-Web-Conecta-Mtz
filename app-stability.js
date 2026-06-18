@@ -1,16 +1,25 @@
 /* =========================================================
-   ConectaMartínez - Núcleo limpio de estabilidad por rol
+   ConectaMartínez - Núcleo estable y optimizado
    ---------------------------------------------------------
-   Carga módulos una sola vez y evita contaminación entre
-   Ciudadano, Apoyo comunitario, Administrador y Superadmin.
+   Inicializa los módulos una sola vez por sesión/rol, evita
+   duplicados, reduce lecturas/escrituras repetidas y limpia
+   vistas que no corresponden al rol activo.
    ========================================================= */
 
 (function () {
   const ADMIN_EMAILS = ['adminp@gmail.com', 'adminb@gmail.com'];
-  const MODULE_VERSION = '202606-stable-core';
+  const MODULE_VERSION = '202606-optimal-core';
+
+  let lastIdentity = '';
+  let profileStarted = false;
+  let realtimeStarted = false;
+  let adminStarted = false;
+  let superadminStarted = false;
+  let retryTimer = null;
+  let healthTimer = null;
 
   function normalize(value = '') {
-    return String(value).trim().toLowerCase();
+    return String(value || '').trim().toLowerCase();
   }
 
   function getStoredProfile() {
@@ -70,13 +79,33 @@
       || !role.includes('administrador');
   }
 
+  function identity() {
+    return `${getCurrentEmail()}|${getCurrentRole()}|${isRealAdmin() ? 'admin' : 'user'}|${isSuperadmin() ? 'super' : 'normal'}`;
+  }
+
+  function resetWhenIdentityChanges() {
+    const currentIdentity = identity();
+    if (currentIdentity === lastIdentity) return;
+
+    if (lastIdentity) {
+      window.stopSuperadminEnhancements?.();
+      window.stopAdminClean?.();
+    }
+
+    lastIdentity = currentIdentity;
+    profileStarted = false;
+    realtimeStarted = false;
+    adminStarted = false;
+    superadminStarted = false;
+  }
+
   function hasScript(src) {
     const cleanName = src.replace('./', '');
     return Array.from(document.scripts).some(script => script.src.includes(cleanName));
   }
 
   function loadScript(src, type = 'text/javascript') {
-    if (hasScript(src)) return;
+    if (hasScript(src)) return true;
 
     const script = document.createElement('script');
     script.src = `${src}?v=${MODULE_VERSION}`;
@@ -84,6 +113,7 @@
     script.defer = true;
     script.onerror = () => console.error(`No se pudo cargar ${src}`);
     document.body.appendChild(script);
+    return false;
   }
 
   function loadBaseModules() {
@@ -108,7 +138,7 @@
     if (!isSupportOrCitizen()) return;
 
     document.querySelectorAll(
-      '#adminCleanRoot, #adminRealtimePanel, #adminWindowsRoot, #adminMapPanel, #adminManagersWindow, #superIncidentTools, #superadminMovementPanel, #superadminNotificationsPanel, #superadminUsersMetrics, #adminReportsPanel, .admin-window-tabs, .admin-map-panel, .admin-realtime-panel'
+      '#adminCleanRoot, #adminRealtimePanel, #adminWindowsRoot, #adminMapPanel, #adminManagersWindow, #superIncidentTools, #superadminMovementPanel, #superadminNotificationsPanel, #superadminUsersMetrics, #adminReportsPanel, #adminCleanMapFilters, .admin-window-tabs, .admin-map-panel, .admin-realtime-panel'
     ).forEach(element => element.remove());
 
     document.body.classList.remove('superadmin-enhanced');
@@ -127,10 +157,7 @@
       ? document.getElementById('supportScreen')
       : document.getElementById('homeScreen');
 
-    document.querySelectorAll('.screen').forEach(screen =>
-      screen.classList.remove('active')
-    );
-
+    document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
     target?.classList.add('active');
   }
 
@@ -142,32 +169,67 @@
     });
   }
 
-  function runModules() {
-    loadBaseModules();
+  function startBaseModules() {
+    if (!profileStarted && typeof window.startProfileClean === 'function') {
+      profileStarted = true;
+      Promise.resolve(window.startProfileClean()).catch(console.warn);
+    }
 
-    window.startProfileClean?.();
-    window.startRealtimeSync?.();
-
-    if (isRealAdmin()) {
-      loadAdminOnlyModules();
-      window.startAdminClean?.();
-      window.restoreAdminProfileName?.();
-
-      if (isSuperadmin()) {
-        window.startSuperadminEnhancements?.();
-      } else {
-        window.stopSuperadminEnhancements?.();
-      }
-    } else {
-      window.stopSuperadminEnhancements?.();
-      window.stopAdminClean?.();
-      removeAdminViewsForNonAdmin();
-      fixSupportNavigation();
+    if (!realtimeStarted && typeof window.startRealtimeSync === 'function') {
+      realtimeStarted = true;
+      Promise.resolve(window.startRealtimeSync()).catch(console.warn);
     }
   }
 
+  function startAdminModules() {
+    if (!isRealAdmin()) return;
+
+    loadAdminOnlyModules();
+
+    if (!adminStarted && typeof window.startAdminClean === 'function') {
+      adminStarted = true;
+      Promise.resolve(window.startAdminClean()).catch(console.warn);
+    }
+
+    if (isSuperadmin()) {
+      if (!superadminStarted && typeof window.startSuperadminEnhancements === 'function') {
+        superadminStarted = true;
+        Promise.resolve(window.startSuperadminEnhancements()).catch(console.warn);
+      }
+    } else if (superadminStarted) {
+      window.stopSuperadminEnhancements?.();
+      superadminStarted = false;
+    }
+  }
+
+  function scheduleRetry() {
+    clearTimeout(retryTimer);
+    retryTimer = setTimeout(() => runModules({ retry: true }), 900);
+  }
+
+  function runModules() {
+    resetWhenIdentityChanges();
+    loadBaseModules();
+    startBaseModules();
+
+    if (isRealAdmin()) {
+      startAdminModules();
+
+      const waitingForAdmin = !window.startAdminClean || (isSuperadmin() && !window.startSuperadminEnhancements);
+      if (waitingForAdmin) scheduleRetry();
+      return;
+    }
+
+    window.stopSuperadminEnhancements?.();
+    window.stopAdminClean?.();
+    adminStarted = false;
+    superadminStarted = false;
+    removeAdminViewsForNonAdmin();
+    fixSupportNavigation();
+  }
+
   function afterNavigation() {
-    setTimeout(runModules, 300);
+    setTimeout(runModules, 250);
   }
 
   function watchNavigation() {
@@ -176,10 +238,42 @@
         afterNavigation();
       }
     });
+
+    document.getElementById('loginForm')?.addEventListener('submit', () => {
+      setTimeout(runModules, 900);
+      setTimeout(runModules, 2200);
+    });
+
+    document.getElementById('logoutBtn')?.addEventListener('click', () => {
+      setTimeout(() => {
+        window.stopSuperadminEnhancements?.();
+        window.stopAdminClean?.();
+        adminStarted = false;
+        superadminStarted = false;
+        profileStarted = false;
+        realtimeStarted = false;
+        removeAdminViewsForNonAdmin();
+      }, 300);
+    });
   }
 
-  function keepCleanByRole() {
-    setInterval(runModules, 2200);
+  function startHealthCheck() {
+    if (healthTimer) return;
+
+    healthTimer = setInterval(() => {
+      resetWhenIdentityChanges();
+
+      if (!isRealAdmin()) {
+        removeAdminViewsForNonAdmin();
+        fixSupportNavigation();
+        return;
+      }
+
+      loadAdminOnlyModules();
+      if (!adminStarted || (isSuperadmin() && !superadminStarted)) {
+        runModules();
+      }
+    }, 15000);
   }
 
   function showLoadErrors() {
@@ -191,17 +285,22 @@
         authMessage.dataset.type = 'error';
       }
     });
+
+    window.addEventListener('unhandledrejection', event => {
+      console.error('Promesa rechazada en la app:', event.reason);
+    });
   }
 
+  window.runConectaStableCore = runModules;
+
   window.addEventListener('load', () => {
-    loadBaseModules();
-    loadAdminOnlyModules();
     disableUnimplementedSocialButtons();
     watchNavigation();
-    keepCleanByRole();
     showLoadErrors();
+    startHealthCheck();
 
-    setTimeout(runModules, 800);
-    setTimeout(runModules, 1800);
+    runModules();
+    setTimeout(runModules, 900);
+    setTimeout(runModules, 2200);
   });
 })();
