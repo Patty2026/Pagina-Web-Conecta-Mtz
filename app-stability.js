@@ -1,22 +1,18 @@
 /* =========================================================
-   ConectaMartínez - Núcleo estable y optimizado
+   ConectaMartínez - Núcleo estable de arranque
    ---------------------------------------------------------
-   Inicializa los módulos una sola vez por sesión/rol, evita
-   duplicados, reduce lecturas/escrituras repetidas y limpia
-   vistas que no corresponden al rol activo.
+   Mantiene la app navegable aunque un módulo tarde en cargar,
+   evita scripts duplicados y centraliza la carga de módulos.
    ========================================================= */
 
 (function () {
   const ADMIN_EMAILS = ['adminp@gmail.com', 'adminb@gmail.com'];
-  const MODULE_VERSION = '202606-optimal-core';
+  const MODULE_VERSION = '202606-safe-boot';
 
-  let lastIdentity = '';
-  let profileStarted = false;
-  let realtimeStarted = false;
+  let bootStarted = false;
   let adminStarted = false;
   let superadminStarted = false;
   let retryTimer = null;
-  let healthTimer = null;
 
   function normalize(value = '') {
     return String(value || '').trim().toLowerCase();
@@ -34,69 +30,85 @@
     return normalize(document.getElementById('loginEmail')?.value || '');
   }
 
-  function getCurrentEmail() {
+  function currentEmail() {
     const loginEmail = getLoginEmail();
     if (ADMIN_EMAILS.includes(loginEmail)) return loginEmail;
 
     const profile = getStoredProfile();
-    return normalize(profile.correo || profile.email || loginEmail || '');
+    return normalize(window.conectaCurrentUser?.email || profile.correo || profile.email || loginEmail || '');
   }
 
-  function getCurrentRole() {
+  function currentRole() {
     const profile = getStoredProfile();
+    const email = currentEmail();
+
+    if (email === 'adminp@gmail.com') return 'superadmin';
+    if (email === 'adminb@gmail.com') return 'administrador';
+
     return normalize(profile.rol || '');
   }
 
-  function hasExplicitAdminAccess() {
-    const profile = getStoredProfile();
-    const role = getCurrentRole();
+  function isAdmin() {
+    const email = currentEmail();
+    const role = currentRole();
 
-    if (role.includes('apoyo') || role.includes('ciudadano')) return false;
+    if (ADMIN_EMAILS.includes(email)) return true;
+    if (role.includes('ciudadano') || role.includes('apoyo')) return false;
 
-    return profile.accesoAdministrativo === true
-      && (role.includes('superadmin') || role.includes('administrador'));
-  }
-
-  function isRealAdmin() {
-    const email = getCurrentEmail();
-    return ADMIN_EMAILS.includes(email) || hasExplicitAdminAccess();
+    return role.includes('administrador') || role.includes('superadmin');
   }
 
   function isSuperadmin() {
-    const email = getCurrentEmail();
-    const role = getCurrentRole();
-    return email === 'adminp@gmail.com' || (hasExplicitAdminAccess() && role.includes('superadmin'));
+    return currentEmail() === 'adminp@gmail.com' || currentRole().includes('superadmin');
   }
 
-  function isSupportOrCitizen() {
-    const role = getCurrentRole();
-    const email = getCurrentEmail();
+  function showScreen(screenId) {
+    const screen = document.getElementById(screenId);
+    if (!screen) return false;
 
-    if (ADMIN_EMAILS.includes(email) || hasExplicitAdminAccess()) return false;
+    document.querySelectorAll('.screen').forEach(item => item.classList.remove('active'));
+    screen.classList.add('active');
+    window.scrollTo(0, 0);
 
-    return role.includes('apoyo')
-      || role.includes('ciudadano')
-      || !role.includes('administrador');
-  }
-
-  function identity() {
-    return `${getCurrentEmail()}|${getCurrentRole()}|${isRealAdmin() ? 'admin' : 'user'}|${isSuperadmin() ? 'super' : 'normal'}`;
-  }
-
-  function resetWhenIdentityChanges() {
-    const currentIdentity = identity();
-    if (currentIdentity === lastIdentity) return;
-
-    if (lastIdentity) {
-      window.stopSuperadminEnhancements?.();
-      window.stopAdminClean?.();
+    if (screenId === 'mapScreen') {
+      setTimeout(() => {
+        window.runConectaStableCore?.();
+        window.startAdminClean?.();
+      }, 250);
     }
 
-    lastIdentity = currentIdentity;
-    profileStarted = false;
-    realtimeStarted = false;
-    adminStarted = false;
-    superadminStarted = false;
+    if (screenId === 'profileScreen') {
+      setTimeout(() => window.startProfileClean?.(), 250);
+    }
+
+    if (screenId === 'adminScreen') {
+      setTimeout(() => runCore(), 250);
+    }
+
+    return true;
+  }
+
+  function installFallbackNavigation() {
+    if (window.__conectaFallbackNavigationReady) return;
+    window.__conectaFallbackNavigationReady = true;
+
+    window.showConectaScreen = showScreen;
+
+    document.addEventListener('click', event => {
+      const button = event.target.closest('[data-go]');
+      if (!button) return;
+
+      const destination = button.dataset.go;
+      if (!destination) return;
+
+      // No interferir con botones de envío de formularios.
+      if (button.closest('form') && button.type === 'submit') return;
+
+      const moved = showScreen(destination);
+      if (moved) {
+        setTimeout(runCore, 300);
+      }
+    }, false);
   }
 
   function hasScript(src) {
@@ -105,15 +117,28 @@
   }
 
   function loadScript(src, type = 'text/javascript') {
-    if (hasScript(src)) return true;
+    if (hasScript(src)) return;
 
     const script = document.createElement('script');
     script.src = `${src}?v=${MODULE_VERSION}`;
     script.type = type;
     script.defer = true;
-    script.onerror = () => console.error(`No se pudo cargar ${src}`);
+    script.onerror = () => {
+      console.error(`No se pudo cargar ${src}`);
+      showBootMessage(`No se pudo cargar ${src}. Actualiza con Ctrl + F5.`);
+    };
     document.body.appendChild(script);
-    return false;
+  }
+
+  function showBootMessage(message) {
+    const authMessage = document.getElementById('authMessage');
+    if (!authMessage) return;
+
+    const loginVisible = document.getElementById('loginScreen')?.classList.contains('active');
+    if (!loginVisible) return;
+
+    authMessage.textContent = message;
+    authMessage.dataset.type = 'error';
   }
 
   function loadBaseModules() {
@@ -123,8 +148,17 @@
     loadScript('./realtime-sync.js', 'module');
   }
 
-  function loadAdminOnlyModules() {
-    if (!isRealAdmin()) return;
+  function startBaseModules() {
+    try {
+      window.startProfileClean?.();
+      window.startRealtimeSync?.();
+    } catch (error) {
+      console.warn('No se pudieron iniciar módulos base:', error);
+    }
+  }
+
+  function loadAdminModules() {
+    if (!isAdmin()) return;
 
     loadScript('./admin-clean.js', 'module');
     loadScript('./admin-profile-fix.js', 'module');
@@ -134,173 +168,118 @@
     }
   }
 
-  function removeAdminViewsForNonAdmin() {
-    if (!isSupportOrCitizen()) return;
-
-    document.querySelectorAll(
-      '#adminCleanRoot, #adminRealtimePanel, #adminWindowsRoot, #adminMapPanel, #adminManagersWindow, #superIncidentTools, #superadminMovementPanel, #superadminNotificationsPanel, #superadminUsersMetrics, #adminReportsPanel, #adminCleanMapFilters, .admin-window-tabs, .admin-map-panel, .admin-realtime-panel'
-    ).forEach(element => element.remove());
-
-    document.body.classList.remove('superadmin-enhanced');
-
-    const adminScreen = document.getElementById('adminScreen');
-    if (adminScreen) adminScreen.classList.remove('active');
-  }
-
-  function fixSupportNavigation() {
-    if (!isSupportOrCitizen()) return;
-
-    const active = document.querySelector('.screen.active');
-    if (!active || active.id !== 'adminScreen') return;
-
-    const target = getCurrentRole().includes('apoyo')
-      ? document.getElementById('supportScreen')
-      : document.getElementById('homeScreen');
-
-    document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
-    target?.classList.add('active');
-  }
-
-  function disableUnimplementedSocialButtons() {
-    document.querySelectorAll('.social-row button').forEach(button => {
-      button.disabled = true;
-      button.title = 'Disponible próximamente';
-      button.style.opacity = '0.55';
-    });
-  }
-
-  function startBaseModules() {
-    if (!profileStarted && typeof window.startProfileClean === 'function') {
-      profileStarted = true;
-      Promise.resolve(window.startProfileClean()).catch(console.warn);
-    }
-
-    if (!realtimeStarted && typeof window.startRealtimeSync === 'function') {
-      realtimeStarted = true;
-      Promise.resolve(window.startRealtimeSync()).catch(console.warn);
-    }
-  }
-
   function startAdminModules() {
-    if (!isRealAdmin()) return;
-
-    loadAdminOnlyModules();
-
-    if (!adminStarted && typeof window.startAdminClean === 'function') {
-      adminStarted = true;
-      Promise.resolve(window.startAdminClean()).catch(console.warn);
-    }
-
-    if (isSuperadmin()) {
-      if (!superadminStarted && typeof window.startSuperadminEnhancements === 'function') {
-        superadminStarted = true;
-        Promise.resolve(window.startSuperadminEnhancements()).catch(console.warn);
-      }
-    } else if (superadminStarted) {
-      window.stopSuperadminEnhancements?.();
+    if (!isAdmin()) {
+      adminStarted = false;
       superadminStarted = false;
+      window.stopSuperadminEnhancements?.();
+      window.stopAdminClean?.();
+      return;
     }
+
+    loadAdminModules();
+
+    try {
+      if (typeof window.startAdminClean === 'function') {
+        window.startAdminClean();
+        adminStarted = true;
+      }
+
+      if (isSuperadmin() && typeof window.startSuperadminEnhancements === 'function') {
+        window.startSuperadminEnhancements();
+        superadminStarted = true;
+      }
+    } catch (error) {
+      console.warn('No se pudo iniciar módulo administrativo:', error);
+    }
+
+    const needsRetry = !window.startAdminClean || (isSuperadmin() && !window.startSuperadminEnhancements);
+    if (needsRetry) scheduleRetry();
   }
 
   function scheduleRetry() {
     clearTimeout(retryTimer);
-    retryTimer = setTimeout(() => runModules({ retry: true }), 900);
+    retryTimer = setTimeout(runCore, 900);
   }
 
-  function runModules() {
-    resetWhenIdentityChanges();
+  function removeAdminExtrasForNormalUsers() {
+    if (isAdmin()) return;
+
+    document.querySelectorAll(
+      '#adminCleanRoot, #adminReportsPanel, #adminCleanMapFilters, #superIncidentTools, #superadminNotificationsPanel, #superadminUsersMetrics, #superadminMovementPanel, .admin-window-tabs, .admin-map-panel, .admin-realtime-panel'
+    ).forEach(element => element.remove());
+
+    document.body.classList.remove('superadmin-enhanced');
+
+    const active = document.querySelector('.screen.active');
+    if (active?.id === 'adminScreen') {
+      const role = currentRole();
+      showScreen(role.includes('apoyo') ? 'supportScreen' : 'homeScreen');
+    }
+  }
+
+  function runCore() {
+    installFallbackNavigation();
     loadBaseModules();
     startBaseModules();
 
-    if (isRealAdmin()) {
+    if (isAdmin()) {
       startAdminModules();
-
-      const waitingForAdmin = !window.startAdminClean || (isSuperadmin() && !window.startSuperadminEnhancements);
-      if (waitingForAdmin) scheduleRetry();
-      return;
+    } else {
+      removeAdminExtrasForNormalUsers();
     }
-
-    window.stopSuperadminEnhancements?.();
-    window.stopAdminClean?.();
-    adminStarted = false;
-    superadminStarted = false;
-    removeAdminViewsForNonAdmin();
-    fixSupportNavigation();
   }
 
-  function afterNavigation() {
-    setTimeout(runModules, 250);
-  }
-
-  function watchNavigation() {
-    document.addEventListener('click', event => {
-      if (event.target.closest('[data-go], .profile-toggle, .bottom-nav button')) {
-        afterNavigation();
-      }
-    });
-
+  function watchAuthAndNavigation() {
     document.getElementById('loginForm')?.addEventListener('submit', () => {
-      setTimeout(runModules, 900);
-      setTimeout(runModules, 2200);
+      setTimeout(runCore, 700);
+      setTimeout(runCore, 1800);
+      setTimeout(runCore, 3200);
     });
 
     document.getElementById('logoutBtn')?.addEventListener('click', () => {
       setTimeout(() => {
-        window.stopSuperadminEnhancements?.();
-        window.stopAdminClean?.();
         adminStarted = false;
         superadminStarted = false;
-        profileStarted = false;
-        realtimeStarted = false;
-        removeAdminViewsForNonAdmin();
-      }, 300);
+        window.stopSuperadminEnhancements?.();
+        window.stopAdminClean?.();
+        removeAdminExtrasForNormalUsers();
+      }, 400);
+    });
+
+    document.addEventListener('click', event => {
+      if (event.target.closest('[data-go], .profile-toggle, .bottom-nav button')) {
+        setTimeout(runCore, 350);
+      }
     });
   }
 
-  function startHealthCheck() {
-    if (healthTimer) return;
+  function installErrorReporter() {
+    if (window.__conectaErrorReporterReady) return;
+    window.__conectaErrorReporterReady = true;
 
-    healthTimer = setInterval(() => {
-      resetWhenIdentityChanges();
-
-      if (!isRealAdmin()) {
-        removeAdminViewsForNonAdmin();
-        fixSupportNavigation();
-        return;
-      }
-
-      loadAdminOnlyModules();
-      if (!adminStarted || (isSuperadmin() && !superadminStarted)) {
-        runModules();
-      }
-    }, 15000);
-  }
-
-  function showLoadErrors() {
     window.addEventListener('error', event => {
-      console.error('Error de carga en la app:', event.message, event.filename, event.lineno);
-      const authMessage = document.getElementById('authMessage');
-      if (authMessage && document.getElementById('loginScreen')?.classList.contains('active')) {
-        authMessage.textContent = 'Se detectó un error de carga. Actualiza con Ctrl + F5 e intenta nuevamente.';
-        authMessage.dataset.type = 'error';
-      }
+      console.error('Error de carga en ConectaMartínez:', event.message, event.filename, event.lineno);
     });
 
     window.addEventListener('unhandledrejection', event => {
-      console.error('Promesa rechazada en la app:', event.reason);
+      console.error('Promesa rechazada en ConectaMartínez:', event.reason);
     });
   }
 
-  window.runConectaStableCore = runModules;
+  window.runConectaStableCore = runCore;
+  window.showConectaScreen = showScreen;
 
   window.addEventListener('load', () => {
-    disableUnimplementedSocialButtons();
-    watchNavigation();
-    showLoadErrors();
-    startHealthCheck();
+    if (bootStarted) return;
+    bootStarted = true;
 
-    runModules();
-    setTimeout(runModules, 900);
-    setTimeout(runModules, 2200);
+    installFallbackNavigation();
+    installErrorReporter();
+    watchAuthAndNavigation();
+
+    runCore();
+    setTimeout(runCore, 900);
+    setTimeout(runCore, 2200);
   });
 })();
