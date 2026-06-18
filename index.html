@@ -7,8 +7,8 @@
   <title>Conecta Martínez | App Ciudadana</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="./styles.css?v=202606-clean" />
-  <link rel="stylesheet" href="./responsive.css?v=202606-clean" />
+  <link rel="stylesheet" href="./styles.css?v=202606-safe-boot" />
+  <link rel="stylesheet" href="./responsive.css?v=202606-safe-boot" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -262,14 +262,14 @@
     <!-- Reportes -->
     <section class="screen tracking" id="trackingScreen">
       <button class="back" data-go="homeScreen">‹</button>
-      <h2>Detalle del reporte</h2>
-      <div class="status-banner">En proceso<br><small>Tu reporte está siendo atendido</small></div>
-      <h3>#INC-2024-0012<br><span>Baches en vialidades</span></h3>
+      <h2>Reportes</h2>
+      <div class="status-banner">Sincronizando datos<br><small>Consulta tus reportes registrados.</small></div>
+      <h3>#INC<br><span>Reportes ciudadanos</span></h3>
       <div class="timeline">
-        <p>✅ Reporte recibido</p>
-        <p>✅ En revisión</p>
-        <p>🟠 En proceso</p>
-        <p>⚪ Resuelto pendiente</p>
+        <p>⚪ Pendiente</p>
+        <p>⚪ En revisión</p>
+        <p>⚪ En proceso</p>
+        <p>⚪ Resuelto</p>
       </div>
       <button class="main-btn" data-go="mapScreen">Ver en el mapa</button>
     </section>
@@ -287,6 +287,7 @@
       <nav class="bottom-nav admin-clean-nav">
         <button data-go="adminScreen">Panel</button>
         <button class="active" data-go="mapScreen">Mapa</button>
+        <button data-go="trackingScreen">Reportes</button>
         <button data-go="profileScreen">Perfil</button>
       </nav>
     </section>
@@ -314,7 +315,7 @@
       </div>
 
       <div id="supportReportsList" class="support-list">
-        <div class="empty-state"><b>Cargando reportes...</b><small>Consultando incidencias registradas.</small></div>
+        <div class="empty-state"><b>Sincronizando datos...</b><small>Consultando incidencias registradas.</small></div>
       </div>
 
       <nav class="bottom-nav">
@@ -338,7 +339,7 @@
       <div class="menu-list profile-accordion">
         <button class="profile-toggle" data-profile-panel="panelReports">Mis reportes <span>›</span></button>
         <div class="profile-panel" id="panelReports">
-          <div id="profileReportsList" class="profile-list"><div class="empty-state"><b>Cargando reportes...</b><small>Espera un momento.</small></div></div>
+          <div id="profileReportsList" class="profile-list"><div class="empty-state"><b>Sincronizando reportes...</b><small>Espera un momento.</small></div></div>
         </div>
 
         <button class="profile-toggle" data-profile-panel="panelData">Mis datos <span>›</span></button>
@@ -361,6 +362,7 @@
       <nav class="bottom-nav admin-clean-nav">
         <button data-go="adminScreen">Panel</button>
         <button data-go="mapScreen">Mapa</button>
+        <button data-go="trackingScreen">Reportes</button>
         <button class="active" data-go="profileScreen">Perfil</button>
       </nav>
     </section>
@@ -391,6 +393,7 @@
       <nav class="bottom-nav admin-clean-nav">
         <button class="active" data-go="adminScreen">Panel</button>
         <button data-go="mapScreen">Mapa</button>
+        <button data-go="trackingScreen">Reportes</button>
         <button data-go="profileScreen">Perfil</button>
       </nav>
     </section>
@@ -398,9 +401,9 @@
   </main>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script type="module" src="./script.js?v=202606-clean-nav"></script>
-  <script src="./admin-role.js?v=202606-clean-nav"></script>
-  <script src="./app-stability.js?v=202606-clean-nav"></script>
-  <script src="./security-regex.js?v=202606-security"></script>
+  <script type="module" src="./script.js?v=202606-safe-boot"></script>
+  <script src="./admin-role.js?v=202606-safe-boot"></script>
+  <script src="./app-stability.js?v=202606-safe-boot"></script>
+  <script src="./security-regex.js?v=202606-safe-boot"></script>
 </body>
 </html>
