@@ -1,19 +1,17 @@
 /* =========================================================
-   ConectaMartínez - Control limpio de acceso administrativo
+   ConectaMartínez - Control ligero de acceso administrativo
    ---------------------------------------------------------
-   Este archivo solo decide si el usuario debe entrar al panel.
-   La carga de módulos se centraliza en app-stability.js.
+   No carga paneles pesados desde localStorage al abrir la app.
+   El Admin/Superadmin se activa después del login real.
    ========================================================= */
 
 const SUPERADMIN_EMAILS = ['adminp@gmail.com'];
 const ADMIN_EMAILS = ['adminb@gmail.com'];
 const ALL_ADMIN_EMAILS = [...SUPERADMIN_EMAILS, ...ADMIN_EMAILS];
 
-let adminGuardInterval = null;
 let adminSessionClosing = false;
 let adminAutoRedirectEnabled = false;
 let retryAdminModulesTimer = null;
-let lastAdminModuleStartAt = 0;
 let lastForcedPanelAt = 0;
 
 function normalizeEmail(email = '') {
@@ -22,10 +20,8 @@ function normalizeEmail(email = '') {
 
 function resolveAdminRole(email = '') {
   const normalized = normalizeEmail(email);
-
   if (SUPERADMIN_EMAILS.includes(normalized)) return 'Superadmin';
   if (ADMIN_EMAILS.includes(normalized)) return 'Administrador';
-
   return null;
 }
 
@@ -43,14 +39,15 @@ function getLoginEmail() {
 
 function getAdminEmailCandidate() {
   const loginEmail = normalizeEmail(getLoginEmail());
-
-  // Si se está escribiendo un correo admin, siempre tiene prioridad.
   if (resolveAdminRole(loginEmail)) return loginEmail;
 
   const stored = getStoredProfile();
   const storedEmail = normalizeEmail(stored.correo || stored.email || '');
 
-  if (resolveAdminRole(storedEmail)) return storedEmail;
+  // Solo usar sesión guardada cuando fue marcada como administrativa activa.
+  if (stored.adminSessionActive === true && stored.accesoAdministrativo === true && resolveAdminRole(storedEmail)) {
+    return storedEmail;
+  }
 
   return loginEmail || storedEmail;
 }
@@ -79,6 +76,7 @@ function saveAdminProfile(email, role) {
     nombre: keepStoredName ? stored.nombre : (safeEmail.split('@')[0] || role),
     rol: role,
     accesoAdministrativo: true,
+    adminSessionActive: true,
     estado: 'Activo'
   }));
 }
@@ -88,11 +86,6 @@ function clearAdminProfile() {
   adminAutoRedirectEnabled = false;
   localStorage.removeItem('conectaPerfil');
   sessionStorage.removeItem('conectaPerfil');
-
-  if (adminGuardInterval) {
-    clearInterval(adminGuardInterval);
-    adminGuardInterval = null;
-  }
 
   if (retryAdminModulesTimer) {
     clearTimeout(retryAdminModulesTimer);
@@ -104,10 +97,7 @@ function clearAdminProfile() {
 }
 
 function showScreen(screenId) {
-  document.querySelectorAll('.screen').forEach(screen => {
-    screen.classList.remove('active');
-  });
-
+  document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
   document.getElementById(screenId)?.classList.add('active');
   window.scrollTo(0, 0);
 }
@@ -146,12 +136,7 @@ function applyAdminPanelInfo() {
 function loadAdminModules(options = {}) {
   if (!isAdminUser()) return;
 
-  const now = Date.now();
-  const force = options.force === true;
-
-  // Evita que el panel se reinicie cada segundo.
-  if (!force && now - lastAdminModuleStartAt < 6000) return;
-  lastAdminModuleStartAt = now;
+  window.maybeStartAdminModules?.();
 
   let started = false;
 
@@ -165,15 +150,13 @@ function loadAdminModules(options = {}) {
       window.startSuperadminEnhancements();
       started = true;
     }
-
-    window.runConectaStableCore?.();
   } catch (error) {
     console.warn('No se pudo iniciar el panel administrativo:', error);
   }
 
-  if (!started) {
+  if (!started && options.retry !== false) {
     clearTimeout(retryAdminModulesTimer);
-    retryAdminModulesTimer = setTimeout(() => loadAdminModules({ force: true }), 900);
+    retryAdminModulesTimer = setTimeout(() => loadAdminModules({ retry: false }), 1200);
   }
 }
 
@@ -183,7 +166,7 @@ function goAdminPanel() {
 
   showScreen('adminScreen');
   applyAdminPanelInfo();
-  loadAdminModules({ force: true });
+  loadAdminModules();
 }
 
 function forceAdminPanel() {
@@ -191,7 +174,6 @@ function forceAdminPanel() {
 
   const email = getAdminEmailCandidate();
   const role = resolveAdminRole(email);
-
   if (!role) return false;
 
   const now = Date.now();
@@ -218,15 +200,12 @@ function activateAdminAfterLogin() {
   adminAutoRedirectEnabled = true;
   saveAdminProfile(loginEmail, loginRole);
 
-  [500, 1400, 2800].forEach(delay => {
-    setTimeout(forceAdminPanel, delay);
-  });
+  [900, 1800, 3000].forEach(delay => setTimeout(forceAdminPanel, delay));
 }
 
 async function handleAdminLogout(event) {
   const logoutButton = event.target.closest('#logoutBtn, .logout, [data-admin-logout]');
   if (!logoutButton) return;
-
   if (!isAdminUser()) return;
 
   event.preventDefault();
@@ -235,9 +214,7 @@ async function handleAdminLogout(event) {
   clearAdminProfile();
 
   try {
-    if (window.firebaseSignOut) {
-      await window.firebaseSignOut();
-    }
+    if (window.firebaseSignOut) await window.firebaseSignOut();
   } catch (error) {
     console.warn('No se pudo cerrar sesión desde Firebase:', error);
   }
@@ -246,6 +223,9 @@ async function handleAdminLogout(event) {
 }
 
 function protectAdminActions() {
+  if (window.__adminRoleActionsReady) return;
+  window.__adminRoleActionsReady = true;
+
   document.addEventListener('click', handleAdminLogout, true);
 
   document.addEventListener('click', event => {
@@ -258,15 +238,9 @@ function protectAdminActions() {
     }
 
     const nav = event.target.closest('[data-go]');
-    if (!nav || !isAdminUser()) return;
+    if (!nav || !isAdminUser() || !adminAutoRedirectEnabled) return;
 
     const destination = nav.dataset.go;
-
-    if (destination === 'splashScreen' || destination === 'onboardingScreen' || destination === 'loginScreen') {
-      adminAutoRedirectEnabled = false;
-      return;
-    }
-
     const blockedForAdmin = [
       'homeScreen',
       'categoriesScreen',
@@ -286,32 +260,19 @@ function protectAdminActions() {
   }, true);
 }
 
-function keepAdminOnAdminPanel() {
-  if (adminGuardInterval) clearInterval(adminGuardInterval);
+function installAdminLoginWatcher() {
+  const loginForm = document.getElementById('loginForm');
+  const registerBtn = document.getElementById('registerBtn');
 
-  adminGuardInterval = setInterval(() => {
-    if (!adminAutoRedirectEnabled || !isAdminUser()) return;
+  if (loginForm && loginForm.dataset.adminRoleReady !== 'true') {
+    loginForm.dataset.adminRoleReady = 'true';
+    loginForm.addEventListener('submit', activateAdminAfterLogin);
+  }
 
-    const active = document.querySelector('.screen.active');
-    const allowed = [
-      'adminScreen',
-      'mapScreen',
-      'trackingScreen',
-      'profileScreen',
-      'splashScreen',
-      'onboardingScreen',
-      'loginScreen'
-    ];
-
-    if (active && !allowed.includes(active.id)) {
-      goAdminPanel();
-      return;
-    }
-
-    if (active && allowed.includes(active.id)) {
-      loadAdminModules();
-    }
-  }, 5000);
+  if (registerBtn && registerBtn.dataset.adminRoleReady !== 'true') {
+    registerBtn.dataset.adminRoleReady = 'true';
+    registerBtn.addEventListener('click', activateAdminAfterLogin);
+  }
 }
 
 window.resolveAdminRole = resolveAdminRole;
@@ -327,17 +288,9 @@ window.goSplashScreen = goSplashScreen;
 window.goLoginScreen = goLoginScreen;
 
 window.addEventListener('load', () => {
-  const loginForm = document.getElementById('loginForm');
-  const registerBtn = document.getElementById('registerBtn');
-
-  loginForm?.addEventListener('submit', activateAdminAfterLogin);
-  registerBtn?.addEventListener('click', activateAdminAfterLogin);
-
+  installAdminLoginWatcher();
   protectAdminActions();
-  keepAdminOnAdminPanel();
 
-  if (isAdminUser()) {
-    adminAutoRedirectEnabled = true;
-    setTimeout(forceAdminPanel, 900);
-  }
+  // No redirigir automáticamente desde localStorage al abrir la página.
+  // Esto evita que una sesión vieja con Superadmin congele el arranque.
 });
