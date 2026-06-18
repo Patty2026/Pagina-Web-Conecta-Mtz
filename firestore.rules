@@ -59,6 +59,26 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == userId;
     }
 
+    function isOwnAdminRecord() {
+      return signedIn()
+        && resource.data.correo != null
+        && resource.data.correo.lower() == authEmail();
+    }
+
+    function isCreatingOwnAdminRecord() {
+      return signedIn()
+        && request.resource.data.correo != null
+        && request.resource.data.correo.lower() == authEmail()
+        && isAdminEmail();
+    }
+
+    function canSelfUpdateAdminRecord() {
+      return isOwnAdminRecord()
+        && request.resource.data.correo == resource.data.correo
+        && request.resource.data.rol == resource.data.rol
+        && request.resource.data.estado == resource.data.estado;
+    }
+
     match /usuarios/{userId} {
       allow create: if signedIn() && (isOwner(userId) || isAdmin());
       allow read: if signedIn() && (isOwner(userId) || isAdmin());
@@ -108,7 +128,9 @@ service cloud.firestore {
 
     match /administradores/{adminId} {
       allow read: if signedIn() && isAdmin();
-      allow create, update, delete: if signedIn() && isSuperadmin();
+      allow create: if signedIn() && (isSuperadmin() || isCreatingOwnAdminRecord());
+      allow update: if signedIn() && (isSuperadmin() || canSelfUpdateAdminRecord());
+      allow delete: if signedIn() && isSuperadmin();
     }
 
     match /auditoria_admin/{logId} {
