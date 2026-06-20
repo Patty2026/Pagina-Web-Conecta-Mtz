@@ -7,7 +7,7 @@
   <meta name="description" content="Aplicación ciudadana para reportes, seguimiento y apoyo comunitario en Martínez de la Torre." />
   <meta name="theme-color" content="#07133c" />
   <link rel="icon" href="./logo-conecta-martinez.png" />
-  <link rel="stylesheet" href="./app-clean.css?v=202606-google-maps" />
+  <link rel="stylesheet" href="./app-clean.css?v=202606-map-fix" />
 </head>
 <body>
   <main class="app" id="appRoot">
@@ -107,8 +107,21 @@
     </article>
   </div>
 
+  <script>
+    window.ConectaGoogleMapsFailed = false;
+    window.ConectaUseFallbackMap = false;
+    window.gm_authFailure = function () {
+      window.ConectaGoogleMapsFailed = true;
+      window.ConectaUseFallbackMap = true;
+      window.dispatchEvent(new CustomEvent('conecta-render-fallback-map', {
+        detail: { reason: 'Google Maps rechazó la API Key. Revisa restricciones, dominio permitido, API habilitada o facturación.' }
+      }));
+    };
+  </script>
   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyArAW7ori6d5DpHW3lMEvLDl8q0iQl7spc&libraries=places" defer></script>
-  <script type="module" src="./app-clean.js?v=202606-google-maps"></script>
-  <script type="module" src="./google-maps-adapter.js?v=202606-google-maps"></script>
+  <script type="module" src="./app-clean.js?v=202606-map-fix"></script>
+  <script type="module" src="./google-maps-adapter.js?v=202606-map-fix"></script>
+  <script type="module" src="./maps-fallback.js?v=202606-map-fix"></script>
+  <script src="./ui-cleanup.js?v=202606-map-fix" defer></script>
 </body>
 </html>
