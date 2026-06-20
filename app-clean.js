@@ -241,10 +241,15 @@ function showScreen(screenName) {
 function setAuthMode(mode) {
   state.authMode = mode;
   const isRegister = mode === 'register';
-  if (dom.authTitle) dom.authTitle.textContent = isRegister ? 'Crear cuenta' : 'Iniciar sesión';
-  if (dom.authSubtitle) dom.authSubtitle.textContent = isRegister ? 'Registra tus datos para comenzar.' : 'Accede para continuar.';
+  const greeting = $('#authGreeting');
+  if (greeting) greeting.textContent = isRegister ? '¡Únete!' : '¡Bienvenido!';
+  if (dom.authSubtitle) dom.authSubtitle.textContent = isRegister ? 'Crea tu cuenta para comenzar.' : 'Inicia sesión para continuar.';
   if (dom.authSubmit) dom.authSubmit.textContent = isRegister ? 'Crear cuenta' : 'Iniciar sesión';
-  if (dom.toggleAuthBtn) dom.toggleAuthBtn.textContent = isRegister ? 'Ya tengo cuenta, iniciar sesión' : '¿No tienes cuenta? Regístrate';
+  if (dom.toggleAuthBtn) {
+    dom.toggleAuthBtn.innerHTML = isRegister
+      ? 'Ya tengo cuenta, <span>Iniciar sesión</span>'
+      : '¿No tienes cuenta? <span>Regístrate</span>';
+  }
   dom.nameInput?.closest('label')?.classList.toggle('hidden', !isRegister);
   dom.roleLabel?.classList.toggle('hidden', !isRegister);
   if (dom.passwordInput) dom.passwordInput.autocomplete = isRegister ? 'new-password' : 'current-password';
@@ -589,8 +594,122 @@ function renderMapView() {
 function renderProfileView() {
   if (!dom.profileView) return;
   const p = state.profile || {};
-  dom.profileView.innerHTML = `<article class="panel-card"><h2>Mis datos</h2><p>Actualiza tu información directamente en la base de datos.</p><form id="profileForm" class="form-grid"><label>Nombre<input id="profileNombre" value="${safeText(p.nombre, '')}"></label><label>Num. de teléfono<input id="profileTelefono" value="${safeText(p.numeroTelefono || p.telefono, '')}"></label><label>Ocupación<input id="profileOcupacion" value="${safeText(p.ocupacion, '')}"></label><label>Descripción del Apoyo<textarea id="profileDescripcion">${safeText(p.descripcionApoyo, '')}</textarea></label><button class="btn-primary full" type="submit">Guardar cambios</button><div id="profileMessage" class="message"></div></form></article>`;
-  $('#profileForm')?.addEventListener('submit', saveProfile);
+  const nombre = escapeHTML(p.nombre || state.user?.email?.split('@')[0] || 'Usuario');
+  const rol = escapeHTML(p.rol || state.role || 'Ciudadano');
+  const inicial = (p.nombre || 'U').charAt(0).toUpperCase();
+  const reportes = p.estadisticasUsuario?.incidenciasReportadas ?? p.estadisticas?.incidenciasReportadas ?? 0;
+  const estado = escapeHTML(p.estado || 'activo');
+
+  dom.profileView.innerHTML = `
+    <div class="profile-header">
+      <div class="profile-blob"></div>
+      <div class="profile-avatar-lg">${inicial}</div>
+      <b class="profile-name">${nombre}</b>
+      <span class="profile-role-text">${rol}</span>
+      <div class="profile-badges">
+        <span class="profile-status-badge">${estado}</span>
+        <span class="profile-pts">${reportes} reportes</span>
+      </div>
+    </div>
+
+    <div class="profile-menu">
+      <button class="profile-menu-item" data-ps="mis-reportes">
+        <span>Mis reportes</span><span class="menu-arrow">›</span>
+      </button>
+      <button class="profile-menu-item" data-ps="mis-datos">
+        <span>Mis datos</span><span class="menu-arrow">›</span>
+      </button>
+      <button class="profile-menu-item" data-ps="configuracion">
+        <span>Configuración</span><span class="menu-arrow">›</span>
+      </button>
+      <button class="profile-menu-item" data-ps="ayuda">
+        <span>Ayuda y soporte</span><span class="menu-arrow">›</span>
+      </button>
+      <button class="profile-menu-item" data-ps="acerca">
+        <span>Acerca de la app</span><span class="menu-arrow">›</span>
+      </button>
+    </div>
+
+    <div id="profileSectionContent" class="profile-section-content"></div>
+
+    <button class="profile-logout" id="profileLogoutBtn" type="button">Cerrar sesión</button>
+  `;
+
+  dom.profileView.querySelectorAll('[data-ps]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const all = dom.profileView.querySelectorAll('[data-ps]');
+      all.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderProfileSection(btn.dataset.ps);
+    });
+  });
+
+  $('#profileLogoutBtn')?.addEventListener('click', () => dom.logoutBtn?.click());
+}
+
+function renderProfileSection(section) {
+  const container = $('#profileSectionContent');
+  if (!container) return;
+  const p = state.profile || {};
+
+  if (section === 'mis-datos') {
+    container.innerHTML = `
+      <form id="profileForm" class="form-grid profile-form-inner">
+        <label>Nombre<input id="profileNombre" value="${safeText(p.nombre, '')}"></label>
+        <label>Teléfono<input id="profileTelefono" value="${safeText(p.numeroTelefono || p.telefono, '')}"></label>
+        <label>Ocupación<input id="profileOcupacion" value="${safeText(p.ocupacion, '')}"></label>
+        <label>Descripción<textarea id="profileDescripcion">${safeText(p.descripcionApoyo, '')}</textarea></label>
+        <button class="btn-primary full" type="submit">Guardar cambios</button>
+        <div id="profileMessage" class="message"></div>
+      </form>`;
+    $('#profileForm')?.addEventListener('submit', saveProfile);
+    return;
+  }
+
+  if (section === 'mis-reportes') {
+    const myReports = state.reports.filter(r => r.usuarioId === state.user?.uid || r.idCiudadano === state.user?.uid);
+    container.innerHTML = `<div class="profile-section-box"><h3>Mis reportes</h3>${renderReportList(myReports, 'No tienes reportes enviados aún.')}</div>`;
+    return;
+  }
+
+  if (section === 'configuracion') {
+    container.innerHTML = `
+      <div class="profile-section-box">
+        <h3>Configuración</h3>
+        <div class="config-row">
+          <span>Notificaciones</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="toggleNotif" ${p.preferencias?.notificaciones !== false ? 'checked' : ''}>
+            <span class="toggle-thumb"></span>
+          </label>
+        </div>
+        <div class="config-row">
+          <span>Versión</span><small>Conecta MTZ 2026</small>
+        </div>
+      </div>`;
+    return;
+  }
+
+  if (section === 'ayuda') {
+    container.innerHTML = `
+      <div class="profile-section-box">
+        <h3>Ayuda y soporte</h3>
+        <p style="color:var(--muted)">Para soporte escribe a <b style="color:var(--cyan)">soporte@conectamtz.mx</b> o visita la página del municipio.</p>
+        <p style="color:var(--muted)">Horario de atención: Lunes a Viernes 8:00 – 17:00 h</p>
+      </div>`;
+    return;
+  }
+
+  if (section === 'acerca') {
+    container.innerHTML = `
+      <div class="profile-section-box">
+        <h3>Acerca de Conecta MTZ</h3>
+        <p style="color:var(--muted)">Plataforma ciudadana de reporte de incidencias para Martínez de la Torre, Veracruz.</p>
+        <p style="color:var(--muted)">Versión 2026 · Desarrollado con Firebase y tecnologías web.</p>
+        <p style="color:var(--muted)"><em>"Juntos resolvemos más"</em></p>
+      </div>`;
+    return;
+  }
 }
 
 async function saveProfile(event) {

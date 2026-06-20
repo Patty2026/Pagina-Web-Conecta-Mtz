@@ -29,24 +29,26 @@
       </div>
     </section>
 
-    <section id="authScreen" class="screen">
-      <div class="logo-box">
+    <section id="authScreen" class="screen auth-screen">
+      <div class="auth-logo">
         <img src="./logo-conecta-martinez.png" alt="Conecta Martínez" />
       </div>
-      <article class="auth-card">
-        <h2 id="authTitle">Iniciar sesión</h2>
-        <p id="authSubtitle">Accede para continuar.</p>
+      <div class="auth-greeting">
+        <h1 id="authGreeting">¡Bienvenido!</h1>
+        <p id="authSubtitle">Inicia sesión para continuar.</p>
+      </div>
+      <div class="auth-body">
         <form id="authForm" class="form-grid">
-          <label>Nombre
+          <label class="auth-label">Nombre
             <input id="nameInput" type="text" autocomplete="name" placeholder="Tu nombre" />
           </label>
-          <label>Correo electrónico
+          <label class="auth-label">Correo electrónico
             <input id="emailInput" type="email" autocomplete="email" required placeholder="correo@ejemplo.com" />
           </label>
-          <label>Contraseña
+          <label class="auth-label">Contraseña
             <input id="passwordInput" type="password" autocomplete="current-password" required placeholder="Mínimo 6 caracteres" />
           </label>
-          <label id="roleLabel">Tipo de usuario
+          <label id="roleLabel" class="auth-label">Tipo de usuario
             <select id="roleInput">
               <option value="Ciudadano">Ciudadano</option>
               <option value="Apoyo comunitario">Apoyo comunitario</option>
@@ -54,9 +56,9 @@
           </label>
           <button id="authSubmit" class="btn-primary full" type="submit">Iniciar sesión</button>
         </form>
-        <button id="toggleAuthBtn" class="btn-ghost full" type="button">¿No tienes cuenta? Regístrate</button>
+        <button id="toggleAuthBtn" class="auth-toggle-link" type="button">¿No tienes cuenta? <span>Regístrate</span></button>
         <p id="authMessage" class="message"></p>
-      </article>
+      </div>
     </section>
 
     <section id="mainScreen" class="screen">
@@ -96,17 +98,10 @@
   </div>
 
   <script>
-    window.ConectaGoogleMapsFailed = false;
-    window.ConectaUseFallbackMap = false;
-    window.gm_authFailure = function () {
-      window.ConectaGoogleMapsFailed = true;
-      window.ConectaUseFallbackMap = true;
-      window.dispatchEvent(new CustomEvent('conecta-render-fallback-map', {
-        detail: { reason: 'Google Maps rechazó la API Key. Revisa restricciones, dominio permitido, API habilitada o facturación.' }
-      }));
-    };
+    /* Usar OpenStreetMap (Leaflet) como mapa principal — sin costo ni billing */
+    window.ConectaGoogleMapsFailed = true;
+    window.ConectaUseFallbackMap = true;
   </script>
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyArAW7ori6d5DpHW3lMEvLDl8q0iQl7spc&libraries=places&loading=async" defer></script>
   <script src="./navigation-history.js?v=202606-android" defer></script>
   <script src="./support-role-isolation.js?v=202606-android" defer></script>
   <script type="module" src="./support-role.js?v=202606-android"></script>
