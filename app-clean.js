@@ -235,16 +235,46 @@ function clearCommentSubscription() {
   state.comments = [];
 }
 
+const SCREEN_ORDER = ['welcome', 'onboarding', 'auth', 'main'];
+let _currentScreen = 'welcome';
+
 function showScreen(screenName) {
-  [dom.welcomeScreen, dom.onboardingScreen, dom.authScreen, dom.mainScreen]
-    .forEach(s => s?.classList.remove('active'));
-  const target = {
-    welcome: dom.welcomeScreen,
-    onboarding: dom.onboardingScreen,
-    auth: dom.authScreen,
-    main: dom.mainScreen
-  }[screenName];
-  target?.classList.add('active');
+  const screens = [dom.welcomeScreen, dom.onboardingScreen, dom.authScreen, dom.mainScreen];
+  const map = { welcome: dom.welcomeScreen, onboarding: dom.onboardingScreen, auth: dom.authScreen, main: dom.mainScreen };
+  const target = map[screenName];
+  if (!target) return;
+
+  const goingBack = SCREEN_ORDER.indexOf(screenName) < SCREEN_ORDER.indexOf(_currentScreen);
+
+  // La pantalla entrante empieza fuera de pantalla en la dirección correcta
+  target.style.transition = 'none';
+  target.style.transform = goingBack ? 'translateX(-100%)' : 'translateX(100%)';
+  target.style.opacity = '0';
+  target.classList.add('active');
+
+  // Fuerza reflow para que la posición inicial se aplique antes de animar
+  void target.offsetWidth;
+
+  // Anima la entrada
+  target.style.transition = '';
+  target.style.transform = 'translateX(0)';
+  target.style.opacity = '1';
+
+  // Retira la pantalla actual hacia el lado opuesto
+  screens.forEach(s => {
+    if (s && s !== target && s.classList.contains('active')) {
+      s.style.transition = '';
+      s.style.transform = goingBack ? 'translateX(100%)' : 'translateX(-100%)';
+      s.style.opacity = '0';
+      setTimeout(() => {
+        s.classList.remove('active');
+        s.style.transform = '';
+        s.style.opacity = '';
+      }, 400);
+    }
+  });
+
+  _currentScreen = screenName;
 }
 
 function setAuthMode(mode) {

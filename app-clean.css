@@ -36,15 +36,57 @@ button { cursor: pointer; border: 0; }
 button:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .app {
+  position: relative;
   width: min(100%, 980px);
-  min-height: 100vh;
+  height: 100vh;       /* fallback navegadores antiguos */
+  height: 100dvh;      /* barra del navegador en iOS/Android */
   margin: 0 auto;
-  padding: 22px 18px 98px;
+  overflow: hidden;    /* las pantallas no se salen del contenedor */
 }
 
-.screen, .view { display: none; }
-.screen.active, .view.active { display: block; }
-.auth-screen.active { display: flex; }
+/* ── Pantallas independientes: se apilan en el mismo lugar ── */
+.screen {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: flex !important;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+
+  /* Por defecto fuera de pantalla (a la derecha) */
+  transform: translateX(100%);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform .38s cubic-bezier(.4, 0, .2, 1),
+              opacity .28s ease;
+}
+
+/* Pantalla activa: desliza al centro */
+.screen.active {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Pantalla principal: sin scroll propio (los views lo manejan) */
+#mainScreen {
+  overflow: hidden;
+}
+
+/* Vistas dentro de la pantalla principal */
+.view { display: none; }
+.view.active {
+  display: block;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  /* Padding lateral + espacio para la barra de navegación fija abajo */
+  padding: 16px 18px calc(90px + env(safe-area-inset-bottom, 0px));
+}
+
 .hidden { display: none !important; }
 
 .logo-box {
