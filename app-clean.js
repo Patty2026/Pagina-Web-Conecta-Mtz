@@ -1258,7 +1258,6 @@ function initOnboarding() {
 
   const total = ONBOARDING_SLIDES.length;
   let current = 0;
-  let tx = 0;
 
   dotsEl.innerHTML = ONBOARDING_SLIDES.map((_, i) =>
     `<button class="carousel-dot${i === 0 ? ' active' : ''}" data-i="${i}" type="button"></button>`
@@ -1280,25 +1279,29 @@ function initOnboarding() {
     }
   }
 
-  nextBtn.addEventListener('click', () => {
+  // Usa onclick para reemplazar cualquier handler anterior (evita listeners duplicados)
+  nextBtn.onclick = () => {
     if (current < total - 1) goTo(current + 1);
     else { setAuthMode('login'); showScreen('auth'); }
-  });
+  };
 
-  // Swipe
+  // Swipe — reemplaza handlers anteriores
   let tx0 = 0;
-  track.addEventListener('touchstart', e => { tx0 = e.touches[0].clientX; }, { passive: true });
-  track.addEventListener('touchend', e => {
+  track.ontouchstart = (e) => { tx0 = e.touches[0].clientX; };
+  track.ontouchend = (e) => {
     const diff = tx0 - e.changedTouches[0].clientX;
     if (Math.abs(diff) > 40) goTo(current + (diff > 0 ? 1 : -1));
-  }, { passive: true });
+  };
 
-  dotsEl.addEventListener('click', e => {
+  dotsEl.onclick = (e) => {
     const d = e.target.closest('.carousel-dot');
     if (d) goTo(Number(d.dataset.i));
-  });
+  };
 
+  // Deshabilita transición para el posicionamiento inicial (evita flash de slide anterior)
+  track.style.transition = 'none';
   goTo(0);
+  requestAnimationFrame(() => { track.style.transition = ''; });
 }
 
 async function signInWithSocial(provider, label) {
