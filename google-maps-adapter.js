@@ -17,12 +17,27 @@ const CATEGORIES = [
   ['otro', 'Otro', '📍']
 ];
 
-const state = { user: null, reports: [], unsubscribe: null, map: null, markers: [], info: null, timer: null, triedOwnQuery: false };
+const state = {
+  user: null,
+  reports: [],
+  unsubscribe: null,
+  map: null,
+  markers: [],
+  info: null,
+  timer: null,
+  triedOwnQuery: false
+};
+
 const $ = (selector) => document.querySelector(selector);
 
 function clean(value) { return String(value ?? '').trim(); }
 function esc(value) {
-  return clean(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
+  return clean(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
 }
 function statusKey(value) {
   const raw = clean(value || 'pendiente').toLowerCase();
@@ -89,6 +104,17 @@ function clearMarkers() {
 function message(container, title, detail = '') {
   container.innerHTML = `<div class="empty-state" style="margin:16px;"><b>${esc(title)}</b>${detail ? `<small>${esc(detail)}</small>` : ''}</div>`;
 }
+function activateFallback(reason = 'Google Maps no cargó correctamente.') {
+  window.ConectaGoogleMapsFailed = true;
+  window.ConectaUseFallbackMap = true;
+  window.dispatchEvent(new CustomEvent('conecta-render-fallback-map', { detail: { reason } }));
+}
+function isGoogleError(container) {
+  const text = clean(container?.textContent || '');
+  return text.includes('Esta página no puede cargar Google Maps')
+    || text.includes('Google Maps correctamente')
+    || Boolean(container?.querySelector('.gm-err-container, .gm-err-message, .gm-style-cc + div'));
+}
 function schedule(delay = 180) {
   clearTimeout(state.timer);
   state.timer = setTimeout(renderGoogleMap, delay);
@@ -96,26 +122,51 @@ function schedule(delay = 180) {
 function renderGoogleMap() {
   const container = $('#interactiveMap');
   if (!container || !$('#mapView')?.classList.contains('active')) return;
+
+  if (window.ConectaGoogleMapsFailed || window.ConectaUseFallbackMap) {
+    activateFallback('Google Maps fue desactivado y se usará mapa alternativo.');
+    return;
+  }
+
   if (!window.google?.maps) {
-    message(container, 'Google Maps está cargando...', 'Si no aparece, revisa la API Key y que Maps JavaScript API esté habilitada.');
+    message(container, 'Google Maps está cargando...', 'Si no aparece, revisa la API Key, el dominio permitido y Maps JavaScript API.');
     schedule(1400);
     return;
   }
+
   const points = filteredReports().map((item) => ({ item, position: coords(item) })).filter((entry) => entry.position);
   container.innerHTML = '<div id="googleMapCanvas" style="width:100%;height:100%;min-height:420px;border-radius:24px;"></div>';
   const canvas = $('#googleMapCanvas');
   const center = points[0]?.position || DEFAULT_CENTER;
-  state.map = new google.maps.Map(canvas, { center, zoom: points.length ? 14 : 13, mapTypeControl: false, streetViewControl: false, fullscreenControl: true });
-  state.info = new google.maps.InfoWindow();
+
+  try {
+    state.map = new google.maps.Map(canvas, {
+      center,
+      zoom: points.length ? 14 : 13,
+      mapTypeControl: false,
+      streetViewControl: false,
+      fullscreenControl: true
+    });
+    state.info = new google.maps.InfoWindow();
+  } catch (error) {
+    activateFallback(error?.message || 'No se pudo inicializar Google Maps.');
+    return;
+  }
+
+  window.setTimeout(() => {
+    if (isGoogleError(container)) activateFallback('Google Maps rechazó la carga. Revisa restricciones, API habilitada o facturación.');
+  }, 1300);
+
   clearMarkers();
   if (!points.length) {
     const empty = document.createElement('div');
     empty.className = 'empty-state';
     empty.style.margin = '16px';
-    empty.innerHTML = '<b>No hay incidencias con GPS para mostrar.</b><small>Al crear un reporte, usa “Usar mi ubicación GPS”.</small>';
+    empty.innerHTML = '<b>No hay incidencias con GPS para mostrar.</b><small>Al crear un reporte, usa “Capturar ubicación GPS”.</small>';
     container.appendChild(empty);
     return;
   }
+
   const bounds = new google.maps.LatLngBounds();
   points.forEach(({ item, position }) => {
     const title = clean(item.titulo || categoryLabel(item.categoriaClave || item.categoria) || 'Incidencia');
