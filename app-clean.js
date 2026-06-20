@@ -1,7 +1,6 @@
-/* Conecta Martínez - app limpia, estable y ampliada 2026 */
-
+/* Conecta Martínez - núcleo limpio y compatible con index.html */
 import firebaseConfig from './firebase-config.js';
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
+import { initializeApp, getApp, getApps } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
 import {
   getAuth,
   onAuthStateChanged,
@@ -24,27 +23,22 @@ import {
   serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+const fbApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
+const auth = getAuth(fbApp);
+const db = getFirestore(fbApp);
 
 const SUPERADMIN_EMAIL = 'adminp@gmail.com';
 const BASIC_ADMIN_EMAIL = 'adminb@gmail.com';
 const ADMIN_EMAILS = new Set([SUPERADMIN_EMAIL, BASIC_ADMIN_EMAIL]);
 
-const DEFAULT_CENTER = [20.0703, -97.0608]; // Martínez de la Torre, Ver. aproximado
-const MAX_EVIDENCE_FILES = 2;
-const MAX_IMAGE_WIDTH = 900;
-const JPEG_QUALITY = 0.68;
-
 const CATEGORIES = [
-  ['baches', 'Baches en vialidades'],
-  ['alumbrado', 'Alumbrado público'],
-  ['basura', 'Recolección de basura'],
-  ['agua', 'Fugas de agua'],
-  ['areas_verdes', 'Áreas verdes'],
-  ['seguridad', 'Seguridad / Riesgo'],
-  ['otro', 'Otro']
+  ['baches', 'Baches en vialidades', '🕳️'],
+  ['alumbrado', 'Alumbrado público', '💡'],
+  ['basura', 'Recolección de basura', '🗑️'],
+  ['agua', 'Fugas de agua', '💧'],
+  ['areas_verdes', 'Áreas verdes', '🌳'],
+  ['seguridad', 'Seguridad / Riesgo', '⚠️'],
+  ['otro', 'Otro', '📍']
 ];
 
 const DEPARTMENTS = [
@@ -65,25 +59,23 @@ const dom = {
   welcomeScreen: $('#welcomeScreen'),
   authScreen: $('#authScreen'),
   mainScreen: $('#mainScreen'),
-  goLoginBtn: $('#goLoginBtn'),
-  goRegisterBtn: $('#goRegisterBtn'),
-  backWelcomeBtn: $('#backWelcomeBtn'),
+  startBtn: $('#startBtn'),
+  aboutBtn: $('#aboutBtn'),
   authForm: $('#authForm'),
   authTitle: $('#authTitle'),
   authSubtitle: $('#authSubtitle'),
-  authEmail: $('#authEmail'),
-  authPassword: $('#authPassword'),
-  registerFields: $('#registerFields'),
-  registerName: $('#registerName'),
-  registerRole: $('#registerRole'),
-  authSubmitBtn: $('#authSubmitBtn'),
+  nameInput: $('#nameInput'),
+  emailInput: $('#emailInput'),
+  passwordInput: $('#passwordInput'),
+  roleLabel: $('#roleLabel'),
+  roleInput: $('#roleInput'),
+  authSubmit: $('#authSubmit'),
   toggleAuthBtn: $('#toggleAuthBtn'),
   authMessage: $('#authMessage'),
   userAvatar: $('#userAvatar'),
   userName: $('#userName'),
   userRole: $('#userRole'),
   logoutBtn: $('#logoutBtn'),
-  bottomNav: $('#bottomNav'),
   panelView: $('#panelView'),
   mapView: $('#mapView'),
   reportsView: $('#reportsView'),
@@ -117,7 +109,8 @@ const state = {
   },
   unsubscribes: [],
   commentUnsubscribe: null,
-  mapInstance: null
+  pendingLocation: null,
+  pendingEvidence: []
 };
 
 function escapeHTML(value) {
@@ -127,12 +120,6 @@ function escapeHTML(value) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
-}
-
-function setMessage(text, type = '') {
-  if (!dom.authMessage) return;
-  dom.authMessage.className = `message ${type}`.trim();
-  dom.authMessage.textContent = text || '';
 }
 
 function normalizeEmail(email) {
@@ -148,38 +135,27 @@ function normalizeStatus(value) {
 }
 
 function displayStatus(value) {
-  const estado = normalizeStatus(value);
   return {
     pendiente: 'Pendiente',
     en_proceso: 'En proceso',
     resuelto: 'Resuelto',
     cancelado: 'Cancelado'
-  }[estado] || 'Pendiente';
+  }[normalizeStatus(value)] || 'Pendiente';
 }
 
-function getCategoryLabel(value) {
+function categoryKey(value) {
   const clean = String(value || '').trim();
-  const found = CATEGORIES.find(([key, label]) => key === clean || label === clean);
-  return found ? found[1] : clean || 'Otro';
+  return CATEGORIES.find(([key, label]) => key === clean || label === clean)?.[0] || 'otro';
 }
 
-function getCategoryKey(value) {
-  const clean = String(value || '').trim();
-  const found = CATEGORIES.find(([key, label]) => key === clean || label === clean);
-  return found ? found[0] : 'otro';
+function categoryLabel(value) {
+  const key = categoryKey(value);
+  return CATEGORIES.find(([itemKey]) => itemKey === key)?.[1] || 'Otro';
 }
 
 function categoryIcon(value) {
-  const key = getCategoryKey(value);
-  return {
-    baches: '🕳️',
-    alumbrado: '💡',
-    basura: '🗑️',
-    agua: '💧',
-    areas_verdes: '🌳',
-    seguridad: '⚠️',
-    otro: '📍'
-  }[key] || '📍';
+  const key = categoryKey(value);
+  return CATEGORIES.find(([itemKey]) => itemKey === key)?.[2] || '📍';
 }
 
 function getRoleByEmail(email, fallbackRole = 'Ciudadano') {
@@ -210,11 +186,10 @@ function safeText(value, fallback = 'Sin dato') {
   return escapeHTML(text || fallback);
 }
 
-function formatDate(value) {
-  if (!value) return 'Sin fecha';
-  const date = value?.toDate ? value.toDate() : new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Sin fecha';
-  return date.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
+function setMessage(text, type = '') {
+  if (!dom.authMessage) return;
+  dom.authMessage.className = `message ${type}`.trim();
+  dom.authMessage.textContent = text || '';
 }
 
 function getDate(value) {
@@ -223,9 +198,22 @@ function getDate(value) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function todayKey(value) {
-  const date = getDate(value) || new Date();
-  return date.toISOString().slice(0, 10);
+function dateKey(value) {
+  const date = getDate(value);
+  return date ? date.toISOString().slice(0, 10) : '';
+}
+
+function formatDate(value) {
+  const date = getDate(value);
+  if (!date) return 'Sin fecha';
+  return date.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function getReportLatLng(item) {
+  const lat = Number(item.latitud ?? item.ubicacion?.lat ?? item.ubicacion?.latitude);
+  const lng = Number(item.longitud ?? item.ubicacion?.lng ?? item.ubicacion?.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return [lat, lng];
 }
 
 function clearSubscriptions() {
@@ -234,10 +222,6 @@ function clearSubscriptions() {
   });
   state.unsubscribes = [];
   clearCommentSubscription();
-  if (state.mapInstance) {
-    try { state.mapInstance.remove(); } catch (error) { console.warn('No se pudo cerrar mapa', error); }
-    state.mapInstance = null;
-  }
 }
 
 function clearCommentSubscription() {
@@ -252,18 +236,18 @@ function showScreen(screenName) {
   [dom.welcomeScreen, dom.authScreen, dom.mainScreen].forEach((screen) => screen?.classList.remove('active'));
   const target = { welcome: dom.welcomeScreen, auth: dom.authScreen, main: dom.mainScreen }[screenName];
   target?.classList.add('active');
-  dom.bottomNav?.classList.toggle('hidden', screenName !== 'main');
 }
 
 function setAuthMode(mode) {
   state.authMode = mode;
   const isRegister = mode === 'register';
-  dom.authTitle.textContent = isRegister ? 'Crear cuenta' : 'Iniciar sesión';
-  dom.authSubtitle.textContent = isRegister ? 'Registra tus datos para comenzar.' : 'Accede para continuar.';
-  dom.registerFields.classList.toggle('hidden', !isRegister);
-  dom.authSubmitBtn.textContent = isRegister ? 'Crear cuenta' : 'Iniciar sesión';
-  dom.toggleAuthBtn.textContent = isRegister ? 'Ya tengo cuenta, iniciar sesión' : 'No tengo cuenta, registrarme';
-  dom.authPassword.autocomplete = isRegister ? 'new-password' : 'current-password';
+  if (dom.authTitle) dom.authTitle.textContent = isRegister ? 'Crear cuenta' : 'Iniciar sesión';
+  if (dom.authSubtitle) dom.authSubtitle.textContent = isRegister ? 'Registra tus datos para comenzar.' : 'Accede para continuar.';
+  if (dom.authSubmit) dom.authSubmit.textContent = isRegister ? 'Crear cuenta' : 'Iniciar sesión';
+  if (dom.toggleAuthBtn) dom.toggleAuthBtn.textContent = isRegister ? 'Ya tengo cuenta, iniciar sesión' : '¿No tienes cuenta? Regístrate';
+  dom.nameInput?.closest('label')?.classList.toggle('hidden', !isRegister);
+  dom.roleLabel?.classList.toggle('hidden', !isRegister);
+  if (dom.passwordInput) dom.passwordInput.autocomplete = isRegister ? 'new-password' : 'current-password';
   setMessage('');
 }
 
@@ -271,8 +255,8 @@ function setView(view) {
   state.activeView = view;
   $$('.view').forEach((item) => item.classList.remove('active'));
   $(`#${view}View`)?.classList.add('active');
-  $$('#bottomNav button').forEach((button) => button.classList.toggle('active', button.dataset.view === view));
-  renderAll();
+  $$('.bottom-nav button').forEach((button) => button.classList.toggle('active', button.dataset.view === view));
+  renderCurrentView();
 }
 
 async function ensureUserProfile(user, selectedRole = 'Ciudadano', extra = {}) {
@@ -318,17 +302,17 @@ async function ensureUserProfile(user, selectedRole = 'Ciudadano', extra = {}) {
 
 async function handleAuthSubmit(event) {
   event.preventDefault();
-  const email = normalizeEmail(dom.authEmail.value);
-  const password = dom.authPassword.value;
-  const selectedRole = dom.registerRole?.value || 'Ciudadano';
-  const name = dom.registerName?.value?.trim() || email.split('@')[0];
+  const email = normalizeEmail(dom.emailInput?.value);
+  const password = dom.passwordInput?.value || '';
+  const selectedRole = dom.roleInput?.value || 'Ciudadano';
+  const name = dom.nameInput?.value?.trim() || email.split('@')[0];
 
   if (!email || !password) {
     setMessage('Completa correo y contraseña.', 'err');
     return;
   }
 
-  dom.authSubmitBtn.disabled = true;
+  if (dom.authSubmit) dom.authSubmit.disabled = true;
   setMessage('Conectando con Firebase...', '');
 
   try {
@@ -346,7 +330,7 @@ async function handleAuthSubmit(event) {
   } catch (error) {
     setMessage(readableAuthError(error), 'err');
   } finally {
-    dom.authSubmitBtn.disabled = false;
+    if (dom.authSubmit) dom.authSubmit.disabled = false;
   }
 }
 
@@ -371,58 +355,64 @@ function startRealtime() {
       state.profile = snap.data();
       state.role = getRoleByEmail(state.user.email, state.profile.rol);
       updateHeader();
-      renderAll();
+      renderCurrentView();
     }
   }, (error) => console.error('Error perfil:', error)));
 
-  const reportsQuery = canManageReports()
-    ? collection(db, 'incidencias')
-    : query(collection(db, 'incidencias'), where('usuarioId', '==', state.user.uid));
-
-  state.unsubscribes.push(onSnapshot(reportsQuery, (snapshot) => {
+  const allReports = collection(db, 'incidencias');
+  state.unsubscribes.push(onSnapshot(allReports, (snapshot) => {
     state.reports = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
-    renderAll();
+    renderCurrentView();
   }, (error) => {
-    console.error('Error incidencias:', error);
-    state.reports = [];
-    renderAll();
+    console.warn('No se pudieron leer todas las incidencias:', error?.code || error);
+    const ownReports = query(collection(db, 'incidencias'), where('usuarioId', '==', state.user.uid));
+    state.unsubscribes.push(onSnapshot(ownReports, (snapshot) => {
+      state.reports = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+      renderCurrentView();
+    }, (ownError) => console.error('Error incidencias propias:', ownError)));
   }));
 
   if (isAdmin()) {
     state.unsubscribes.push(onSnapshot(collection(db, 'usuarios'), (snapshot) => {
       state.users = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
-      renderAll();
+      renderCurrentView();
     }, (error) => console.error('Error usuarios:', error)));
 
     state.unsubscribes.push(onSnapshot(collection(db, 'administradores'), (snapshot) => {
       state.admins = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
-      renderAll();
+      renderCurrentView();
     }, (error) => console.error('Error administradores:', error)));
   }
 
   if (isSuperadmin()) {
     state.unsubscribes.push(onSnapshot(collection(db, 'auditoria_admin'), (snapshot) => {
       state.history = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
-      renderAll();
+      renderCurrentView();
     }, (error) => console.error('Error auditoría:', error)));
   }
 }
 
 function updateHeader() {
   const name = String(state.profile?.nombre || state.user?.displayName || state.user?.email?.split('@')[0] || 'Usuario').trim();
-  dom.userName.textContent = name;
-  dom.userRole.textContent = state.role;
-  dom.userAvatar.textContent = name.charAt(0).toUpperCase();
+  if (dom.userName) dom.userName.textContent = name;
+  if (dom.userRole) dom.userRole.textContent = state.role;
+  if (dom.userAvatar) dom.userAvatar.textContent = name.charAt(0).toUpperCase();
+}
+
+function getVisibleReports() {
+  if (canManageReports()) return state.reports;
+  return state.reports.filter((item) => item.usuarioId === state.user?.uid || item.idCiudadano === state.user?.uid || item.uid === state.user?.uid);
 }
 
 function getMetrics() {
   const today = new Date().toISOString().slice(0, 10);
-  const total = state.reports.length;
-  const todayCount = state.reports.filter((item) => todayKey(item.fecha || item.fechaCreacion || item.createdAt) === today).length;
-  const pendientes = state.reports.filter((item) => normalizeStatus(item.estado) === 'pendiente').length;
-  const enProceso = state.reports.filter((item) => normalizeStatus(item.estado) === 'en_proceso').length;
-  const resueltos = state.reports.filter((item) => normalizeStatus(item.estado) === 'resuelto').length;
-  const cancelados = state.reports.filter((item) => normalizeStatus(item.estado) === 'cancelado').length;
+  const source = canManageReports() ? state.reports : getVisibleReports();
+  const total = source.length;
+  const todayCount = source.filter((item) => dateKey(item.fecha || item.fechaCreacion || item.createdAt) === today).length;
+  const pendientes = source.filter((item) => normalizeStatus(item.estado) === 'pendiente').length;
+  const enProceso = source.filter((item) => normalizeStatus(item.estado) === 'en_proceso').length;
+  const resueltos = source.filter((item) => normalizeStatus(item.estado) === 'resuelto').length;
+  const cancelados = source.filter((item) => normalizeStatus(item.estado) === 'cancelado').length;
   const usuarios = state.users.length;
   const adminsActivos = state.admins.filter((item) => String(item.estado || 'activo').toLowerCase() === 'activo').length;
   return { total, todayCount, pendientes, enProceso, resueltos, cancelados, usuarios, adminsActivos };
@@ -440,33 +430,30 @@ function renderMetrics() {
     ${metricCard('🟡', m.pendientes, 'Pendientes')}
     ${metricCard('🔵', m.enProceso, 'En proceso')}
     ${metricCard('✅', m.resueltos, 'Resueltas')}
-    ${metricCard('👥', m.usuarios, 'Usuarios registrados')}
+    ${isAdmin() ? metricCard('👥', m.usuarios, 'Usuarios registrados') : ''}
     ${isAdmin() ? metricCard('🛡️', m.adminsActivos, 'Administradores activos') : ''}
     ${metricCard('⛔', m.cancelados, 'Canceladas')}
   </section>`;
 }
 
-function renderAll() {
+function renderCurrentView() {
   if (!state.user) return;
-  renderPanel();
-  renderReportsView();
-  renderMapView();
-  renderProfileView();
+  if (state.activeView === 'panel') renderPanel();
+  if (state.activeView === 'reports') renderReportsView();
+  if (state.activeView === 'map') renderMapView();
+  if (state.activeView === 'profile') renderProfileView();
 }
 
 function renderPanel() {
-  const view = dom.panelView;
-  if (!view) return;
-
-  if (isAdmin()) view.innerHTML = renderAdminPanel();
-  else if (isSupport()) view.innerHTML = renderSupportPanel();
-  else view.innerHTML = renderCitizenPanel();
-
+  if (!dom.panelView) return;
+  if (isAdmin()) dom.panelView.innerHTML = renderAdminPanel();
+  else if (isSupport()) dom.panelView.innerHTML = renderSupportPanel();
+  else dom.panelView.innerHTML = renderCitizenPanel();
   bindDynamicActions();
 }
 
 function renderCitizenPanel() {
-  return `<article class="panel-card"><h2>Panel ciudadano</h2><p>Reporta incidencias con GPS, evidencia fotográfica y seguimiento de estado.</p><button class="btn-primary full" data-action="open-report-form">+ Nueva incidencia</button></article>${renderMetrics()}${renderReportList(state.reports.slice(0, 5), 'No hay incidencias registradas todavía.')}`;
+  return `<article class="panel-card"><h2>Panel ciudadano</h2><p>Reporta incidencias con GPS, evidencia fotográfica y seguimiento.</p><button class="btn-primary full" data-action="open-report-form" type="button">+ Nueva incidencia</button></article>${renderMetrics()}${renderReportList(getVisibleReports().slice(0, 5), 'No hay incidencias registradas todavía.')}`;
 }
 
 function renderSupportPanel() {
@@ -475,15 +462,13 @@ function renderSupportPanel() {
 
 function renderAdminPanel() {
   const tabs = ['resumen', 'incidencias', ...(isSuperadmin() ? ['administradores', 'usuarios', 'historial'] : ['usuarios'])];
-  const tabButtons = tabs.map((tab) => `<button class="${state.panelTab === tab ? 'active' : ''}" data-action="panel-tab" data-tab="${tab}">${labelTab(tab)}</button>`).join('');
-
+  const tabButtons = tabs.map((tab) => `<button class="${state.panelTab === tab ? 'active' : ''}" data-action="panel-tab" data-tab="${tab}" type="button">${labelTab(tab)}</button>`).join('');
   let content = '';
   if (state.panelTab === 'resumen') content = renderAdminSummary();
   if (state.panelTab === 'incidencias') content = renderIncidentsTools();
   if (state.panelTab === 'administradores') content = renderAdminsSection();
   if (state.panelTab === 'usuarios') content = renderUsersSection();
   if (state.panelTab === 'historial') content = renderHistorySection();
-
   return `<article class="panel-card"><h2>${isSuperadmin() ? 'Panel Superadmin' : 'Panel Administrativo'}</h2><p>Sincronizando datos en tiempo real con Firestore.</p><div class="tabs">${tabButtons}</div></article>${content}`;
 }
 
@@ -497,36 +482,36 @@ function renderAdminSummary() {
 
 function renderIncidentsTools() {
   const filtered = getFilteredReports();
-  return `<article class="panel-card"><h3>Buscar y filtrar incidencias</h3>${renderFilters()}<div class="actions-row"><button class="btn-secondary" data-action="export-csv">Exportar CSV</button><button class="btn-primary" data-action="open-report-form">Nueva incidencia</button></div></article>${renderReportList(filtered, 'No hay incidencias con esos filtros.', true)}`;
+  return `<article class="panel-card"><h3>Buscar y filtrar incidencias</h3>${renderFilters()}<div class="actions-row"><button class="btn-secondary" data-action="export-csv" type="button">Exportar CSV</button><button class="btn-primary" data-action="open-report-form" type="button">Nueva incidencia</button></div></article>${renderReportList(filtered, 'No hay incidencias con esos filtros.', true)}`;
 }
 
 function renderFilters() {
   const categoryOptions = ['<option value="todos">Todas las categorías</option>', ...CATEGORIES.map(([key, label]) => `<option value="${key}" ${state.filters.categoria === key ? 'selected' : ''}>${label}</option>`)].join('');
   const deptOptions = ['<option value="todos">Todos los departamentos</option>', ...DEPARTMENTS.map((dept) => `<option value="${escapeHTML(dept)}" ${state.filters.departamento === dept ? 'selected' : ''}>${escapeHTML(dept)}</option>`)].join('');
   return `<div class="filter-grid">
-    <input id="filterSearch" placeholder="Buscar incidencia" value="${escapeHTML(state.filters.search)}">
-    <select id="filterEstado"><option value="todos">Todos</option><option value="pendiente" ${state.filters.estado === 'pendiente' ? 'selected' : ''}>Pendientes</option><option value="en_proceso" ${state.filters.estado === 'en_proceso' ? 'selected' : ''}>En proceso</option><option value="resuelto" ${state.filters.estado === 'resuelto' ? 'selected' : ''}>Resueltos</option><option value="cancelado" ${state.filters.estado === 'cancelado' ? 'selected' : ''}>Cancelados</option></select>
-    <select id="filterCategoria">${categoryOptions}</select>
-    <select id="filterDepartamento">${deptOptions}</select>
-    <input id="filterZona" placeholder="Colonia o zona" value="${escapeHTML(state.filters.zona)}">
-    <input id="filterFechaInicio" type="date" value="${escapeHTML(state.filters.fechaInicio)}">
-    <input id="filterFechaFin" type="date" value="${escapeHTML(state.filters.fechaFin)}">
+    <label><span>Buscar</span><input id="filterSearch" placeholder="Buscar incidencia" value="${escapeHTML(state.filters.search)}"></label>
+    <label><span>Estado</span><select id="filterEstado"><option value="todos">Todos</option><option value="pendiente" ${state.filters.estado === 'pendiente' ? 'selected' : ''}>Pendientes</option><option value="en_proceso" ${state.filters.estado === 'en_proceso' ? 'selected' : ''}>En proceso</option><option value="resuelto" ${state.filters.estado === 'resuelto' ? 'selected' : ''}>Resueltos</option><option value="cancelado" ${state.filters.estado === 'cancelado' ? 'selected' : ''}>Cancelados</option></select></label>
+    <label><span>Categoría</span><select id="filterCategoria">${categoryOptions}</select></label>
+    <label><span>Departamento</span><select id="filterDepartamento">${deptOptions}</select></label>
+    <label><span>Colonia o zona</span><input id="filterZona" placeholder="Colonia o zona" value="${escapeHTML(state.filters.zona)}"></label>
+    <label><span>Fecha inicial</span><input id="filterFechaInicio" type="date" value="${escapeHTML(state.filters.fechaInicio)}"></label>
+    <label><span>Fecha final</span><input id="filterFechaFin" type="date" value="${escapeHTML(state.filters.fechaFin)}"></label>
   </div>`;
 }
 
 function getFilteredReports() {
-  return state.reports.filter((item) => {
-    const searchText = `${item.titulo || ''} ${item.descripcion || ''} ${item.categoria || ''} ${item.zona || ''} ${item.colonia || ''} ${item.departamento || ''}`.toLowerCase();
-    const matchesSearch = !state.filters.search || searchText.includes(state.filters.search.toLowerCase());
-    const matchesStatus = state.filters.estado === 'todos' || normalizeStatus(item.estado) === state.filters.estado;
-    const matchesCategory = state.filters.categoria === 'todos' || getCategoryKey(item.categoriaClave || item.categoria) === state.filters.categoria;
-    const matchesDepartment = state.filters.departamento === 'todos' || String(item.departamento || '').trim() === state.filters.departamento;
+  const base = canManageReports() ? state.reports : getVisibleReports();
+  return base.filter((item) => {
+    const searchText = `${item.titulo || ''} ${item.descripcion || ''} ${item.categoria || ''} ${item.categoriaClave || ''} ${item.zona || ''} ${item.colonia || ''} ${item.direccion || ''} ${item.departamento || ''}`.toLowerCase();
     const zone = `${item.zona || ''} ${item.colonia || ''} ${item.direccion || ''}`.toLowerCase();
-    const matchesZone = !state.filters.zona || zone.includes(state.filters.zona.toLowerCase());
-    const dateKey = todayKey(item.fecha || item.fechaCreacion || item.createdAt);
-    const matchesStart = !state.filters.fechaInicio || dateKey >= state.filters.fechaInicio;
-    const matchesEnd = !state.filters.fechaFin || dateKey <= state.filters.fechaFin;
-    return matchesSearch && matchesStatus && matchesCategory && matchesDepartment && matchesZone && matchesStart && matchesEnd;
+    const itemDate = dateKey(item.fecha || item.fechaCreacion || item.createdAt);
+    return (!state.filters.search || searchText.includes(state.filters.search.toLowerCase()))
+      && (state.filters.estado === 'todos' || normalizeStatus(item.estado) === state.filters.estado)
+      && (state.filters.categoria === 'todos' || categoryKey(item.categoriaClave || item.categoria) === state.filters.categoria)
+      && (state.filters.departamento === 'todos' || String(item.departamento || '').trim() === state.filters.departamento)
+      && (!state.filters.zona || zone.includes(state.filters.zona.toLowerCase()))
+      && (!state.filters.fechaInicio || itemDate >= state.filters.fechaInicio)
+      && (!state.filters.fechaFin || itemDate <= state.filters.fechaFin);
   });
 }
 
@@ -541,18 +526,18 @@ function renderReportCard(item, allowActions = false) {
   const desc = safeText(item.descripcion, 'Sin descripción');
   const zone = safeText(item.zona || item.colonia || item.direccion, 'Zona no especificada');
   const dept = safeText(item.departamento, 'Sin departamento');
-  const categoria = safeText(getCategoryLabel(item.categoriaClave || item.categoria), 'Otro');
+  const categoria = safeText(categoryLabel(item.categoriaClave || item.categoria), 'Otro');
   const evidenceCount = Array.isArray(item.evidencias) ? item.evidencias.length : Number(item.evidenciaCount || 0);
   const coords = getReportLatLng(item);
   const coordText = coords ? `<small>🧭 ${coords[0].toFixed(5)}, ${coords[1].toFixed(5)}</small>` : '';
-  const adminActions = allowActions ? `<div class="item-actions">
-      <button class="btn-secondary" data-action="open-report-detail" data-id="${item.id}">Detalle / comentarios</button>
-      <button class="btn-secondary" data-action="change-status" data-id="${item.id}" data-status="en_proceso">En proceso</button>
-      <button class="btn-secondary" data-action="change-status" data-id="${item.id}" data-status="resuelto">Resolver</button>
-      <button class="btn-danger" data-action="change-status" data-id="${item.id}" data-status="cancelado">Cancelar</button>
+  const actions = allowActions ? `<div class="item-actions">
+      <button class="btn-secondary" data-action="open-report-detail" data-id="${item.id}" type="button">Detalle / comentarios</button>
+      <button class="btn-secondary" data-action="change-status" data-id="${item.id}" data-status="en_proceso" type="button">En proceso</button>
+      <button class="btn-secondary" data-action="change-status" data-id="${item.id}" data-status="resuelto" type="button">Resolver</button>
+      <button class="btn-danger" data-action="change-status" data-id="${item.id}" data-status="cancelado" type="button">Cancelar</button>
       ${renderDepartmentSelect(item)}
-    </div>` : `<div class="item-actions"><button class="btn-secondary" data-action="open-report-detail" data-id="${item.id}">Detalle / comentarios</button></div>`;
-  return `<article class="item-card"><div><b>${categoryIcon(item.categoriaClave || item.categoria)} ${title}</b><span class="badge ${estado}">${displayStatus(estado)}</span><small>${desc}</small><small>🏷️ ${categoria}</small><small>🏛️ ${dept}</small><small>📍 ${zone}</small>${coordText}<small>📷 Evidencias: ${evidenceCount}</small><small>🕒 ${formatDate(item.fecha || item.fechaCreacion || item.createdAt)}</small></div>${adminActions}</article>`;
+    </div>` : `<div class="item-actions"><button class="btn-secondary" data-action="open-report-detail" data-id="${item.id}" type="button">Detalle / comentarios</button></div>`;
+  return `<article class="item-card"><div><b>${categoryIcon(item.categoriaClave || item.categoria)} ${title}</b><span class="badge ${estado}">${displayStatus(estado)}</span><small>${desc}</small><small>🏷️ ${categoria}</small><small>🏛️ ${dept}</small><small>📍 ${zone}</small>${coordText}<small>📷 Evidencias: ${evidenceCount}</small><small>🕒 ${formatDate(item.fecha || item.fechaCreacion || item.createdAt)}</small></div>${actions}</article>`;
 }
 
 function renderDepartmentSelect(item) {
@@ -564,12 +549,12 @@ function renderAdminsSection() {
   if (!isSuperadmin()) return `<div class="empty-state"><b>Acceso exclusivo de Superadmin.</b></div>`;
   const activos = state.admins.filter((a) => String(a.estado || 'activo').toLowerCase() === 'activo').length;
   const inactivos = state.admins.length - activos;
-  return `<article class="panel-card"><h3>Administradores</h3><div class="metrics-grid">${metricCard('🛡️', state.admins.length, 'Registrados')}${metricCard('✅', activos, 'Activos')}${metricCard('⛔', inactivos, 'Inactivos')}</div><button class="btn-primary full" data-action="open-admin-form">Agregar administrador</button></article>${renderAdminTable()}`;
+  return `<article class="panel-card"><h3>Administradores</h3><div class="metrics-grid">${metricCard('🛡️', state.admins.length, 'Registrados')}${metricCard('✅', activos, 'Activos')}${metricCard('⛔', inactivos, 'Inactivos')}</div><button class="btn-primary full" data-action="open-admin-form" type="button">Agregar administrador</button></article>${renderAdminTable()}`;
 }
 
 function renderAdminTable() {
   if (!state.admins.length) return `<div class="empty-state"><b>No hay administradores registrados.</b><small>Agrega un nuevo administrador para comenzar.</small></div>`;
-  return `<div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Último acceso</th><th>Acciones</th></tr></thead><tbody>${state.admins.map((a) => `<tr><td>${safeText(a.nombre)}</td><td>${safeText(a.correo)}</td><td>${safeText(a.rol)}</td><td>${safeText(a.estado, 'activo')}</td><td>${formatDate(a.ultimoAcceso)}</td><td><button class="btn-secondary" data-action="edit-admin" data-id="${a.id}">Editar</button> <button class="btn-danger" data-action="toggle-admin" data-id="${a.id}">${String(a.estado || 'activo').toLowerCase() === 'activo' ? 'Desactivar' : 'Activar'}</button></td></tr>`).join('')}</tbody></table></div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Último acceso</th><th>Acciones</th></tr></thead><tbody>${state.admins.map((a) => `<tr><td>${safeText(a.nombre)}</td><td>${safeText(a.correo)}</td><td>${safeText(a.rol)}</td><td>${safeText(a.estado, 'activo')}</td><td>${formatDate(a.ultimoAcceso)}</td><td><button class="btn-secondary" data-action="edit-admin" data-id="${a.id}" type="button">Editar</button> <button class="btn-danger" data-action="toggle-admin" data-id="${a.id}" type="button">${String(a.estado || 'activo').toLowerCase() === 'activo' ? 'Desactivar' : 'Activar'}</button></td></tr>`).join('')}</tbody></table></div>`;
 }
 
 function renderUsersSection() {
@@ -583,59 +568,26 @@ function renderHistorySection() {
 }
 
 function renderReportsView() {
-  dom.reportsView.innerHTML = `<article class="panel-card"><h2>Reportes</h2><p>Consulta incidencias sincronizadas con Firestore.</p>${renderFilters()}<div class="actions-row"><button class="btn-primary" data-action="open-report-form">Nueva incidencia</button>${canManageReports() ? '<button class="btn-secondary" data-action="export-csv">Exportar CSV</button>' : ''}</div></article>${renderReportList(getFilteredReports(), 'No hay incidencias registradas todavía.', canManageReports())}`;
+  if (!dom.reportsView) return;
+  dom.reportsView.innerHTML = `<article class="panel-card"><h2>Reportes</h2><p>Consulta incidencias sincronizadas con Firestore.</p>${renderFilters()}<div class="actions-row"><button class="btn-primary" data-action="open-report-form" type="button">Nueva incidencia</button>${canManageReports() ? '<button class="btn-secondary" data-action="export-csv" type="button">Exportar CSV</button>' : ''}</div></article>${renderReportList(getFilteredReports(), 'No hay incidencias registradas todavía.', canManageReports())}`;
   bindDynamicActions();
 }
 
 function renderMapView() {
+  if (!dom.mapView) return;
   const items = getFilteredReports();
-  dom.mapView.innerHTML = `<article class="panel-card"><h2>Mapa de incidencias</h2><p>Mapa interactivo con marcadores por categoría. Usa GPS al crear una incidencia para ubicarla automáticamente.</p>${renderFilters()}</article><div id="interactiveMap" class="map-box" style="height:420px; padding:0; overflow:hidden;"></div><article class="panel-card"><h3>Ubicaciones registradas</h3>${items.length ? items.map((item) => `<div class="map-pin">${categoryIcon(item.categoriaClave || item.categoria)} ${safeText(item.zona || item.colonia || item.direccion, 'Ubicación registrada')} · ${safeText(getCategoryLabel(item.categoriaClave || item.categoria), 'Incidencia')}</div>`).join('') : '<div class="empty-state"><b>No hay ubicaciones registradas.</b></div>'}</article>`;
+  dom.mapView.innerHTML = `<article class="panel-card"><h2>Mapa de incidencias</h2><p>Mapa interactivo con marcadores por categoría. Usa GPS al crear una incidencia para ubicarla automáticamente.</p>${renderFilters()}</article><div id="interactiveMap" class="map-box" style="height:420px; padding:0; overflow:hidden;"><div class="empty-state" style="margin:16px;"><b>Cargando mapa...</b><small>Sincronizando ubicaciones registradas.</small></div></div><article class="panel-card"><h3>Ubicaciones registradas</h3>${items.length ? items.map((item) => `<div class="map-pin">${categoryIcon(item.categoriaClave || item.categoria)} ${safeText(item.zona || item.colonia || item.direccion, 'Ubicación registrada')} · ${safeText(categoryLabel(item.categoriaClave || item.categoria), 'Incidencia')}</div>`).join('') : '<div class="empty-state"><b>No hay ubicaciones registradas.</b></div>'}</article>`;
   bindDynamicActions();
-  window.setTimeout(renderLeafletMap, 80);
-}
-
-function getReportLatLng(item) {
-  const lat = Number(item.latitud ?? item.ubicacion?.lat ?? item.ubicacion?.latitude);
-  const lng = Number(item.longitud ?? item.ubicacion?.lng ?? item.ubicacion?.longitude);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  return [lat, lng];
-}
-
-function renderLeafletMap() {
-  if (state.activeView !== 'map') return;
-  const container = $('#interactiveMap');
-  if (!container) return;
-  if (!window.L) {
-    container.innerHTML = '<div class="empty-state"><b>No se pudo cargar el mapa interactivo.</b><small>Revisa tu conexión a internet.</small></div>';
-    return;
-  }
-  if (state.mapInstance) {
-    try { state.mapInstance.remove(); } catch (error) { console.warn('Mapa anterior no cerrado', error); }
-    state.mapInstance = null;
-  }
-
-  const L = window.L;
-  const points = getFilteredReports().map((item) => ({ item, coords: getReportLatLng(item) })).filter((entry) => entry.coords);
-  const center = points[0]?.coords || DEFAULT_CENTER;
-  const map = L.map(container, { zoomControl: true }).setView(center, points.length ? 14 : 13);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap'
-  }).addTo(map);
-
-  points.forEach(({ item, coords }) => {
-    const icon = L.divIcon({ className: 'conecta-marker', html: `<span style="font-size:24px">${categoryIcon(item.categoriaClave || item.categoria)}</span>`, iconSize: [28, 28] });
-    L.marker(coords, { icon }).addTo(map).bindPopup(`<b>${safeText(item.titulo || item.categoria, 'Incidencia')}</b><br>${displayStatus(item.estado)}<br>${safeText(item.zona || item.colonia || '', 'Sin zona')}`);
-  });
-
-  if (points.length > 1) {
-    const bounds = L.latLngBounds(points.map((entry) => entry.coords));
-    map.fitBounds(bounds, { padding: [28, 28] });
-  }
-
-  state.mapInstance = map;
+  setTimeout(() => window.ConectaGoogleMapsAdapter?.render?.(), 120);
+  setTimeout(() => {
+    if (window.ConectaUseFallbackMap || window.ConectaGoogleMapsFailed) {
+      window.dispatchEvent(new CustomEvent('conecta-render-fallback-map', { detail: { reason: 'Usando mapa alternativo.' } }));
+    }
+  }, 500);
 }
 
 function renderProfileView() {
+  if (!dom.profileView) return;
   const p = state.profile || {};
   dom.profileView.innerHTML = `<article class="panel-card"><h2>Mis datos</h2><p>Actualiza tu información directamente en la base de datos.</p><form id="profileForm" class="form-grid"><label>Nombre<input id="profileNombre" value="${safeText(p.nombre, '')}"></label><label>Num. de teléfono<input id="profileTelefono" value="${safeText(p.numeroTelefono || p.telefono, '')}"></label><label>Ocupación<input id="profileOcupacion" value="${safeText(p.ocupacion, '')}"></label><label>Descripción del Apoyo<textarea id="profileDescripcion">${safeText(p.descripcionApoyo, '')}</textarea></label><button class="btn-primary full" type="submit">Guardar cambios</button><div id="profileMessage" class="message"></div></form></article>`;
   $('#profileForm')?.addEventListener('submit', saveProfile);
@@ -644,14 +596,14 @@ function renderProfileView() {
 async function saveProfile(event) {
   event.preventDefault();
   const msg = $('#profileMessage');
-  msg.textContent = 'Guardando en Firestore...';
+  if (msg) msg.textContent = 'Guardando en Firestore...';
   try {
     const data = {
-      nombre: $('#profileNombre').value.trim(),
-      telefono: $('#profileTelefono').value.trim(),
-      numeroTelefono: $('#profileTelefono').value.trim(),
-      ocupacion: $('#profileOcupacion').value.trim(),
-      descripcionApoyo: $('#profileDescripcion').value.trim(),
+      nombre: $('#profileNombre')?.value.trim() || '',
+      telefono: $('#profileTelefono')?.value.trim() || '',
+      numeroTelefono: $('#profileTelefono')?.value.trim() || '',
+      ocupacion: $('#profileOcupacion')?.value.trim() || '',
+      descripcionApoyo: $('#profileDescripcion')?.value.trim() || '',
       fechaActualizacion: serverTimestamp()
     };
     await setDoc(doc(db, 'usuarios', state.user.uid), data, { merge: true });
@@ -659,11 +611,15 @@ async function saveProfile(event) {
       const adminId = normalizeEmail(state.user.email).replace(/[^a-z0-9]/g, '_');
       await setDoc(doc(db, 'administradores', adminId), { nombre: data.nombre, fechaActualizacion: serverTimestamp() }, { merge: true });
     }
-    msg.className = 'message ok';
-    msg.textContent = 'Datos guardados correctamente.';
+    if (msg) {
+      msg.className = 'message ok';
+      msg.textContent = 'Datos guardados correctamente.';
+    }
   } catch (error) {
-    msg.className = 'message err';
-    msg.textContent = `Error al guardar: ${error.code || error.message}`;
+    if (msg) {
+      msg.className = 'message err';
+      msg.textContent = `Error al guardar: ${error.code || error.message}`;
+    }
   }
 }
 
@@ -682,7 +638,8 @@ function bindDynamicActions() {
   ['filterSearch', 'filterEstado', 'filterCategoria', 'filterDepartamento', 'filterZona', 'filterFechaInicio', 'filterFechaFin'].forEach((id) => {
     const input = $(`#${id}`);
     if (!input) return;
-    input.oninput = () => {
+    const eventName = input.tagName === 'SELECT' || input.type === 'date' ? 'change' : 'input';
+    input[`on${eventName}`] = () => {
       state.filters.search = $('#filterSearch')?.value || '';
       state.filters.estado = $('#filterEstado')?.value || 'todos';
       state.filters.categoria = $('#filterCategoria')?.value || 'todos';
@@ -690,267 +647,261 @@ function bindDynamicActions() {
       state.filters.zona = $('#filterZona')?.value || '';
       state.filters.fechaInicio = $('#filterFechaInicio')?.value || '';
       state.filters.fechaFin = $('#filterFechaFin')?.value || '';
-      renderAll();
+      renderCurrentView();
     };
   });
 }
 
 function openModal(title, body) {
   clearCommentSubscription();
-  dom.modalTitle.textContent = title;
-  dom.modalBody.innerHTML = body;
-  dom.modal.classList.add('active');
+  if (dom.modalTitle) dom.modalTitle.textContent = title;
+  if (dom.modalBody) dom.modalBody.innerHTML = body;
+  dom.modal?.classList.add('active');
 }
 
 function closeModal() {
+  dom.modal?.classList.remove('active');
+  if (dom.modalBody) dom.modalBody.innerHTML = '';
   clearCommentSubscription();
-  dom.modal.classList.remove('active');
-  dom.modalBody.innerHTML = '';
+  state.pendingLocation = null;
+  state.pendingEvidence = [];
 }
 
 function openReportForm() {
+  state.pendingLocation = null;
+  state.pendingEvidence = [];
   const categoryOptions = CATEGORIES.map(([key, label]) => `<option value="${key}">${label}</option>`).join('');
   const deptOptions = DEPARTMENTS.map((dept) => `<option value="${escapeHTML(dept)}">${escapeHTML(dept)}</option>`).join('');
-  openModal('Nueva incidencia', `<form id="newReportForm" class="form-grid">
-    <label>Título<input id="newReportTitle" placeholder="Ej. Fuga de agua"></label>
-    <label>Descripción<textarea id="newReportDesc" required placeholder="Describe claramente el problema"></textarea></label>
-    <label>Categoría<select id="newReportCategory">${categoryOptions}</select></label>
-    <label>Departamento sugerido<select id="newReportDepartment">${deptOptions}</select></label>
-    <label>Colonia o zona<input id="newReportZone" placeholder="Colonia, calle o referencia"></label>
-    <input id="newReportLat" type="hidden"><input id="newReportLng" type="hidden">
-    <button class="btn-secondary full" id="gpsBtn" type="button">📍 Capturar ubicación GPS</button>
-    <label>Fotografías de evidencia<input id="newReportFiles" type="file" accept="image/*" capture="environment" multiple></label>
-    <small class="message">Puedes adjuntar hasta ${MAX_EVIDENCE_FILES} fotos. Se comprimen para Firestore.</small>
+  openModal('Nueva incidencia', `<form id="reportForm" class="form-grid">
+    <label>Título<input id="reportTitle" placeholder="Ej. Bache frente a la escuela" required></label>
+    <label>Categoría<select id="reportCategory">${categoryOptions}</select></label>
+    <label>Departamento sugerido<select id="reportDepartment"><option value="">Sin asignar</option>${deptOptions}</select></label>
+    <label>Colonia o zona<input id="reportZone" placeholder="Colonia, calle o referencia"></label>
+    <label>Descripción<textarea id="reportDescription" placeholder="Describe el incidente" required></textarea></label>
+    <label>Fotografías<input id="reportEvidence" type="file" accept="image/*" capture="environment" multiple></label>
+    <div class="actions-row"><button id="captureLocationBtn" class="btn-secondary" type="button">Capturar ubicación GPS</button><span id="locationStatus" class="message">Ubicación pendiente.</span></div>
     <button class="btn-primary full" type="submit">Guardar incidencia</button>
-    <div id="newReportMessage" class="message"></div>
+    <div id="reportMessage" class="message"></div>
   </form>`);
-  $('#newReportForm').onsubmit = createReport;
-  $('#gpsBtn').onclick = captureGPS;
+  $('#captureLocationBtn')?.addEventListener('click', captureLocation);
+  $('#reportEvidence')?.addEventListener('change', handleEvidenceFiles);
+  $('#reportForm')?.addEventListener('submit', saveReport);
 }
 
-function captureGPS() {
-  const msg = $('#newReportMessage');
+function captureLocation() {
+  const status = $('#locationStatus');
   if (!navigator.geolocation) {
-    msg.className = 'message err';
-    msg.textContent = 'Este dispositivo no permite geolocalización.';
+    if (status) status.textContent = 'Tu navegador no permite GPS.';
     return;
   }
-  msg.className = 'message';
-  msg.textContent = 'Solicitando ubicación GPS...';
+  if (status) status.textContent = 'Solicitando GPS...';
   navigator.geolocation.getCurrentPosition((position) => {
-    $('#newReportLat').value = String(position.coords.latitude);
-    $('#newReportLng').value = String(position.coords.longitude);
-    msg.className = 'message ok';
-    msg.textContent = `Ubicación capturada: ${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)}`;
+    state.pendingLocation = {
+      lat: position.coords.latitude,
+      lng: position.coords.longitude,
+      accuracy: position.coords.accuracy || null
+    };
+    if (status) {
+      status.className = 'message ok';
+      status.textContent = `GPS capturado: ${state.pendingLocation.lat.toFixed(5)}, ${state.pendingLocation.lng.toFixed(5)}`;
+    }
   }, (error) => {
-    msg.className = 'message err';
-    msg.textContent = `No se pudo obtener GPS: ${error.message}`;
-  }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
+    if (status) {
+      status.className = 'message err';
+      status.textContent = `No se pudo obtener GPS: ${error.message}`;
+    }
+  }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
 }
 
-async function createReport(event) {
+async function handleEvidenceFiles(event) {
+  const files = Array.from(event.target.files || []).slice(0, 2);
+  state.pendingEvidence = [];
+  const msg = $('#reportMessage');
+  if (msg) msg.textContent = files.length ? 'Comprimiendo fotografías...' : '';
+  for (const file of files) {
+    try { state.pendingEvidence.push(await compressImage(file)); }
+    catch (error) { console.warn('No se pudo comprimir imagen', error); }
+  }
+  if (msg) {
+    msg.className = 'message ok';
+    msg.textContent = `${state.pendingEvidence.length} fotografía(s) listas.`;
+  }
+}
+
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const maxWidth = 900;
+        const ratio = Math.min(1, maxWidth / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * ratio);
+        canvas.height = Math.round(img.height * ratio);
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve({ nombre: file.name, tipo: 'image/jpeg', dataUrl: canvas.toDataURL('image/jpeg', 0.68) });
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function saveReport(event) {
   event.preventDefault();
-  const msg = $('#newReportMessage');
-  msg.className = 'message';
-  msg.textContent = 'Procesando evidencia y guardando incidencia...';
+  const msg = $('#reportMessage');
+  if (msg) msg.textContent = 'Guardando incidencia en Firestore...';
+  const category = $('#reportCategory')?.value || 'otro';
+  const location = state.pendingLocation;
   try {
-    const files = Array.from($('#newReportFiles')?.files || []).slice(0, MAX_EVIDENCE_FILES);
-    const evidencias = [];
-    for (const file of files) {
-      const evidence = await compressImageFile(file);
-      if (evidence) evidencias.push(evidence);
-    }
-
-    const categoriaClave = $('#newReportCategory').value;
-    const lat = Number($('#newReportLat').value);
-    const lng = Number($('#newReportLng').value);
-    const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
-
     await addDoc(collection(db, 'incidencias'), {
-      titulo: $('#newReportTitle').value.trim() || getCategoryLabel(categoriaClave),
-      descripcion: $('#newReportDesc').value.trim(),
-      categoria: getCategoryLabel(categoriaClave),
-      categoriaClave,
-      departamento: $('#newReportDepartment').value,
-      zona: $('#newReportZone').value.trim(),
+      titulo: $('#reportTitle')?.value.trim() || categoryLabel(category),
+      descripcion: $('#reportDescription')?.value.trim() || '',
+      categoria: categoryLabel(category),
+      categoriaClave: category,
+      departamento: $('#reportDepartment')?.value || '',
+      zona: $('#reportZone')?.value.trim() || '',
       estado: 'pendiente',
       usuarioId: state.user.uid,
       idCiudadano: state.user.uid,
       correoUsuario: normalizeEmail(state.user.email),
       nombreUsuario: state.profile?.nombre || state.user.displayName || state.user.email,
-      latitud: hasCoords ? lat : null,
-      longitud: hasCoords ? lng : null,
-      ubicacion: hasCoords ? { lat, lng } : null,
-      evidencias,
-      evidenciaCount: evidencias.length,
-      comentariosCount: 0,
+      latitud: location?.lat ?? null,
+      longitud: location?.lng ?? null,
+      ubicacion: location ? { lat: location.lat, lng: location.lng, accuracy: location.accuracy } : null,
+      evidencias: state.pendingEvidence,
+      evidenciaCount: state.pendingEvidence.length,
       fecha: serverTimestamp(),
       fechaCreacion: serverTimestamp(),
       fechaActualizacion: serverTimestamp()
     });
-    msg.className = 'message ok';
-    msg.textContent = 'Incidencia registrada correctamente.';
-    setTimeout(closeModal, 900);
-  } catch (error) {
-    msg.className = 'message err';
-    msg.textContent = `Error: ${error.code || error.message}`;
-  }
-}
-
-function compressImageFile(file) {
-  return new Promise((resolve) => {
-    if (!file.type.startsWith('image/')) return resolve(null);
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const scale = Math.min(1, MAX_IMAGE_WIDTH / img.width);
-        const width = Math.round(img.width * scale);
-        const height = Math.round(img.height * scale);
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve({
-          nombre: file.name,
-          tipo: 'image/jpeg',
-          tamanoOriginal: file.size,
-          dataUrl: canvas.toDataURL('image/jpeg', JPEG_QUALITY),
-          fecha: new Date().toISOString()
-        });
-      };
-      img.onerror = () => resolve(null);
-      img.src = reader.result;
-    };
-    reader.onerror = () => resolve(null);
-    reader.readAsDataURL(file);
-  });
-}
-
-async function changeReportStatus(id, status) {
-  try {
-    await updateDoc(doc(db, 'incidencias', id), { estado: status, fechaActualizacion: serverTimestamp() });
-    if (isSuperadmin()) {
-      await addDoc(collection(db, 'auditoria_admin'), { accion: 'Cambio de estado', detalle: `${id} → ${status}`, correo: state.user.email, fecha: serverTimestamp() });
+    if (msg) {
+      msg.className = 'message ok';
+      msg.textContent = 'Incidencia guardada correctamente.';
     }
+    setTimeout(closeModal, 800);
   } catch (error) {
-    alert(`No se pudo actualizar: ${error.code || error.message}`);
-  }
-}
-
-async function assignDepartment(id, departamento) {
-  if (!departamento) return;
-  try {
-    await updateDoc(doc(db, 'incidencias', id), { departamento, fechaActualizacion: serverTimestamp() });
-    if (isSuperadmin()) {
-      await addDoc(collection(db, 'auditoria_admin'), { accion: 'Asignación de departamento', detalle: `${id} → ${departamento}`, correo: state.user.email, fecha: serverTimestamp() });
+    if (msg) {
+      msg.className = 'message err';
+      msg.textContent = `Error: ${error.code || error.message}`;
     }
-  } catch (error) {
-    alert(`No se pudo asignar departamento: ${error.code || error.message}`);
   }
 }
 
 function openReportDetail(reportId) {
-  const item = state.reports.find((report) => report.id === reportId);
-  if (!item) return;
-  const evidencias = Array.isArray(item.evidencias) ? item.evidencias : [];
-  const evidenceHTML = evidencias.length
-    ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:12px 0;">${evidencias.map((e) => `<a href="${e.dataUrl}" target="_blank" rel="noopener"><img src="${e.dataUrl}" alt="Evidencia" style="width:100%;height:110px;object-fit:cover;border-radius:14px;border:1px solid rgba(255,255,255,.18);"></a>`).join('')}</div>`
-    : '<div class="empty-state"><b>Sin fotografías de evidencia.</b></div>';
-  const coords = getReportLatLng(item);
-  openModal('Detalle de incidencia', `<article class="panel-card">
-    <h3>${safeText(item.titulo || item.categoria, 'Incidencia')}</h3>
-    <span class="badge ${normalizeStatus(item.estado)}">${displayStatus(item.estado)}</span>
-    <p>${safeText(item.descripcion, 'Sin descripción')}</p>
-    <small>🏷️ ${safeText(getCategoryLabel(item.categoriaClave || item.categoria), 'Otro')}</small><br>
-    <small>🏛️ ${safeText(item.departamento, 'Sin departamento')}</small><br>
-    <small>📍 ${safeText(item.zona || item.colonia || item.direccion, 'Sin zona')}</small><br>
-    ${coords ? `<small>🧭 ${coords[0].toFixed(5)}, ${coords[1].toFixed(5)}</small><br>` : ''}
-    <small>🕒 ${formatDate(item.fecha || item.fechaCreacion || item.createdAt)}</small>
-    <h3>Fotografías</h3>${evidenceHTML}
-  </article>
-  <article class="panel-card"><h3>Comentarios</h3><div id="commentsList" class="list"><div class="empty-state"><b>Sincronizando comentarios...</b></div></div><form id="commentForm" class="form-grid"><label>Nuevo comentario<textarea id="commentText" required placeholder="Escribe una observación"></textarea></label><button class="btn-primary full" type="submit">Enviar comentario</button><div id="commentMessage" class="message"></div></form></article>`);
-  $('#commentForm').onsubmit = (event) => saveComment(event, reportId);
-  subscribeComments(reportId);
+  const report = state.reports.find((item) => item.id === reportId);
+  if (!report) return;
+  const evidence = Array.isArray(report.evidencias) && report.evidencias.length
+    ? `<div class="list">${report.evidencias.map((img) => `<img src="${img.dataUrl}" alt="Evidencia" style="width:100%;border-radius:16px;border:1px solid var(--line);">`).join('')}</div>`
+    : '<div class="empty-state"><b>Sin fotografías adjuntas.</b></div>';
+  openModal('Detalle de incidencia', `<div class="form-grid">
+    <article class="panel-card"><h3>${categoryIcon(report.categoriaClave || report.categoria)} ${safeText(report.titulo || report.categoria, 'Incidencia')}</h3><p>${safeText(report.descripcion, 'Sin descripción')}</p><span class="badge ${normalizeStatus(report.estado)}">${displayStatus(report.estado)}</span><small>🏛️ ${safeText(report.departamento, 'Sin departamento')}</small><small>📍 ${safeText(report.zona || report.colonia || report.direccion, 'Sin zona')}</small></article>
+    ${evidence}
+    <article class="panel-card"><h3>Comentarios</h3><div id="commentsList" class="list"><div class="empty-state"><b>Cargando comentarios...</b></div></div><form id="commentForm" class="form-grid"><textarea id="commentText" placeholder="Escribe un comentario"></textarea><button class="btn-primary" type="submit">Publicar comentario</button><div id="commentMessage" class="message"></div></form></article>
+  </div>`);
+  listenComments(reportId);
+  $('#commentForm')?.addEventListener('submit', (event) => saveComment(event, reportId));
 }
 
-function subscribeComments(reportId) {
+function listenComments(reportId) {
   clearCommentSubscription();
-  const q = query(collection(db, 'comentarios'), where('incidenciaId', '==', reportId));
-  state.commentUnsubscribe = onSnapshot(q, (snapshot) => {
-    state.comments = snapshot.docs.map((docItem) => ({ id: docItem.id, ...docItem.data() }));
-    renderCommentsList();
+  const commentsQuery = query(collection(db, 'comentarios'), where('incidenciaId', '==', reportId));
+  state.commentUnsubscribe = onSnapshot(commentsQuery, (snapshot) => {
+    state.comments = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+    const target = $('#commentsList');
+    if (!target) return;
+    if (!state.comments.length) {
+      target.innerHTML = '<div class="empty-state"><b>No hay comentarios todavía.</b></div>';
+      return;
+    }
+    target.innerHTML = state.comments.map((comment) => `<article class="item-card"><div><b>${safeText(comment.nombreUsuario || comment.correoUsuario, 'Usuario')}</b><small>${safeText(comment.texto, '')}</small><small>${formatDate(comment.fecha)}</small></div></article>`).join('');
   }, (error) => {
-    const box = $('#commentsList');
-    if (box) box.innerHTML = `<div class="empty-state"><b>Error al cargar comentarios.</b><small>${escapeHTML(error.code || error.message)}</small></div>`;
+    const target = $('#commentsList');
+    if (target) target.innerHTML = `<div class="empty-state"><b>No se pudieron cargar comentarios.</b><small>${escapeHTML(error.code || error.message)}</small></div>`;
   });
-}
-
-function renderCommentsList() {
-  const box = $('#commentsList');
-  if (!box) return;
-  const comments = [...state.comments].sort((a, b) => (getDate(a.fecha)?.getTime() || 0) - (getDate(b.fecha)?.getTime() || 0));
-  if (!comments.length) {
-    box.innerHTML = '<div class="empty-state"><b>No hay comentarios todavía.</b><small>Sé el primero en colaborar.</small></div>';
-    return;
-  }
-  box.innerHTML = comments.map((c) => `<article class="item-card"><div><b>${safeText(c.nombreUsuario || c.correoUsuario, 'Usuario')}</b><small>${safeText(c.texto, '')}</small><small>${formatDate(c.fecha)}</small></div></article>`).join('');
 }
 
 async function saveComment(event, reportId) {
   event.preventDefault();
   const msg = $('#commentMessage');
-  const text = $('#commentText').value.trim();
+  const text = $('#commentText')?.value.trim();
   if (!text) return;
-  msg.className = 'message';
-  msg.textContent = 'Guardando comentario...';
+  if (msg) msg.textContent = 'Guardando comentario...';
   try {
     await addDoc(collection(db, 'comentarios'), {
       incidenciaId: reportId,
       texto: text,
       usuarioId: state.user.uid,
+      uid: state.user.uid,
       correoUsuario: normalizeEmail(state.user.email),
       nombreUsuario: state.profile?.nombre || state.user.displayName || state.user.email,
       fecha: serverTimestamp()
     });
     await updateDoc(doc(db, 'incidencias', reportId), { comentariosCount: state.comments.length + 1, fechaActualizacion: serverTimestamp() }).catch(() => null);
-    $('#commentText').value = '';
-    msg.className = 'message ok';
-    msg.textContent = 'Comentario publicado.';
+    if ($('#commentText')) $('#commentText').value = '';
+    if (msg) {
+      msg.className = 'message ok';
+      msg.textContent = 'Comentario publicado.';
+    }
   } catch (error) {
-    msg.className = 'message err';
-    msg.textContent = `Error: ${error.code || error.message}`;
+    if (msg) {
+      msg.className = 'message err';
+      msg.textContent = `Error: ${error.code || error.message}`;
+    }
   }
+}
+
+async function changeReportStatus(reportId, status) {
+  try {
+    await updateDoc(doc(db, 'incidencias', reportId), { estado: status, fechaActualizacion: serverTimestamp() });
+    if (isAdmin()) {
+      await addDoc(collection(db, 'auditoria_admin'), { accion: 'Cambio de estado', detalle: `${reportId} → ${status}`, correo: state.user.email, fecha: serverTimestamp() }).catch(() => null);
+    }
+  } catch (error) {
+    alert(`No se pudo cambiar el estado: ${error.code || error.message}`);
+  }
+}
+
+async function assignDepartment(reportId, departamento) {
+  try { await updateDoc(doc(db, 'incidencias', reportId), { departamento, fechaActualizacion: serverTimestamp() }); }
+  catch (error) { alert(`No se pudo asignar departamento: ${error.code || error.message}`); }
 }
 
 function openAdminForm(adminId = null) {
   const current = adminId ? state.admins.find((item) => item.id === adminId) : {};
   openModal(adminId ? 'Editar administrador' : 'Nuevo administrador', `<form id="adminForm" class="form-grid"><label>Nombre<input id="adminName" value="${safeText(current?.nombre, '')}"></label><label>Correo<input id="adminEmail" type="email" value="${safeText(current?.correo, '')}"></label><label>Rol<select id="adminRole"><option ${current?.rol === 'Administrador básico' ? 'selected' : ''}>Administrador básico</option><option ${current?.rol === 'Superadmin' ? 'selected' : ''}>Superadmin</option></select></label><label>Estado<select id="adminStatus"><option value="activo" ${current?.estado !== 'inactivo' ? 'selected' : ''}>activo</option><option value="inactivo" ${current?.estado === 'inactivo' ? 'selected' : ''}>inactivo</option></select></label><button class="btn-primary full" type="submit">Guardar administrador</button><div id="adminFormMessage" class="message"></div></form>`);
-  $('#adminForm').onsubmit = (event) => saveAdmin(event, adminId);
+  $('#adminForm')?.addEventListener('submit', (event) => saveAdmin(event, adminId));
 }
 
 async function saveAdmin(event, adminId) {
   event.preventDefault();
-  const email = normalizeEmail($('#adminEmail').value);
+  const email = normalizeEmail($('#adminEmail')?.value);
   const id = adminId || email.replace(/[^a-z0-9]/g, '_');
   const msg = $('#adminFormMessage');
-  msg.textContent = 'Guardando administrador...';
+  if (msg) msg.textContent = 'Guardando administrador...';
   try {
     await setDoc(doc(db, 'administradores', id), {
-      nombre: $('#adminName').value.trim() || email.split('@')[0],
+      nombre: $('#adminName')?.value.trim() || email.split('@')[0],
       correo: email,
-      rol: $('#adminRole').value,
-      estado: $('#adminStatus').value,
+      rol: $('#adminRole')?.value || 'Administrador básico',
+      estado: $('#adminStatus')?.value || 'activo',
       fechaActualizacion: serverTimestamp()
     }, { merge: true });
-    await addDoc(collection(db, 'auditoria_admin'), { accion: adminId ? 'Editar administrador' : 'Crear administrador', detalle: email, correo: state.user.email, fecha: serverTimestamp() });
-    msg.className = 'message ok';
-    msg.textContent = 'Administrador guardado.';
+    await addDoc(collection(db, 'auditoria_admin'), { accion: adminId ? 'Editar administrador' : 'Crear administrador', detalle: email, correo: state.user.email, fecha: serverTimestamp() }).catch(() => null);
+    if (msg) {
+      msg.className = 'message ok';
+      msg.textContent = 'Administrador guardado.';
+    }
     setTimeout(closeModal, 700);
   } catch (error) {
-    msg.className = 'message err';
-    msg.textContent = `Error: ${error.code || error.message}`;
+    if (msg) {
+      msg.className = 'message err';
+      msg.textContent = `Error: ${error.code || error.message}`;
+    }
   }
 }
 
@@ -966,7 +917,7 @@ function exportReportsCsv() {
     ['Titulo', 'Descripcion', 'Categoria', 'Estado', 'Departamento', 'Zona', 'Latitud', 'Longitud', 'Fecha'],
     ...getFilteredReports().map((r) => {
       const coords = getReportLatLng(r) || ['', ''];
-      return [r.titulo || r.categoria || '', r.descripcion || '', getCategoryLabel(r.categoriaClave || r.categoria), displayStatus(r.estado), r.departamento || '', r.zona || r.colonia || '', coords[0], coords[1], formatDate(r.fecha || r.fechaCreacion)];
+      return [r.titulo || r.categoria || '', r.descripcion || '', categoryLabel(r.categoriaClave || r.categoria), displayStatus(r.estado), r.departamento || '', r.zona || r.colonia || '', coords[0], coords[1], formatDate(r.fecha || r.fechaCreacion)];
     })
   ];
   const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(',')).join('\n');
@@ -979,16 +930,19 @@ function exportReportsCsv() {
   URL.revokeObjectURL(url);
 }
 
+function openAbout() {
+  openModal('Acerca de ConectaMartínez', `<p>ConectaMartínez permite reportar incidencias urbanas, dar seguimiento, consultar el mapa y apoyar la comunicación ciudadana.</p><p>La app usa Firebase Auth y Firestore para sincronizar datos en tiempo real.</p>`);
+}
+
 function setupEvents() {
-  dom.goLoginBtn?.addEventListener('click', () => { setAuthMode('login'); showScreen('auth'); });
-  dom.goRegisterBtn?.addEventListener('click', () => { setAuthMode('register'); showScreen('auth'); });
-  dom.backWelcomeBtn?.addEventListener('click', () => showScreen('welcome'));
+  dom.startBtn?.addEventListener('click', () => { setAuthMode('login'); showScreen('auth'); });
+  dom.aboutBtn?.addEventListener('click', openAbout);
   dom.toggleAuthBtn?.addEventListener('click', () => setAuthMode(state.authMode === 'login' ? 'register' : 'login'));
   dom.authForm?.addEventListener('submit', handleAuthSubmit);
   dom.logoutBtn?.addEventListener('click', async () => { await signOut(auth); });
   dom.closeModalBtn?.addEventListener('click', closeModal);
   dom.modal?.addEventListener('click', (event) => { if (event.target === dom.modal) closeModal(); });
-  $$('#bottomNav button').forEach((button) => button.addEventListener('click', () => setView(button.dataset.view)));
+  $$('.bottom-nav button').forEach((button) => button.addEventListener('click', () => setView(button.dataset.view)));
 }
 
 onAuthStateChanged(auth, async (user) => {
@@ -1009,19 +963,20 @@ onAuthStateChanged(auth, async (user) => {
 
   try {
     state.profile = await ensureUserProfile(user, getRoleByEmail(user.email));
-    state.role = getRoleByEmail(user.email, state.profile.rol);
-    updateHeader();
-    showScreen('main');
-    setView('panel');
-    startRealtime();
   } catch (error) {
     console.error('No se pudo preparar perfil:', error);
-    showScreen('main');
-    state.role = getRoleByEmail(user.email);
-    updateHeader();
-    setView('panel');
-    startRealtime();
+    state.profile = { nombre: user.displayName || user.email?.split('@')[0], correo: user.email, rol: getRoleByEmail(user.email) };
   }
+
+  state.role = getRoleByEmail(user.email, state.profile.rol);
+  updateHeader();
+  showScreen('main');
+  setView('panel');
+  startRealtime();
+});
+
+window.addEventListener('error', (event) => {
+  console.error('Error global:', event.message, event.filename, event.lineno);
 });
 
 setupEvents();
