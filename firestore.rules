@@ -93,12 +93,8 @@ service cloud.firestore {
         isAdmin()
       );
 
-      allow read: if signedIn() && (
-        resource.data.idCiudadano == request.auth.uid ||
-        resource.data.usuarioId == request.auth.uid ||
-        isSupport() ||
-        isAdmin()
-      );
+      // Lectura pública para usuarios autenticados: necesaria para mapa de incidencias urbanas.
+      allow read: if signedIn();
 
       allow update: if signedIn() && (
         resource.data.idCiudadano == request.auth.uid ||
