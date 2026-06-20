@@ -34,7 +34,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging.js';
 
 // ── Clave VAPID pública: Firebase Console → Project Settings → Cloud Messaging → Web push certificates
-const VAPID_KEY = 'TU_VAPID_KEY_AQUI';
+const VAPID_KEY = 'BJ8aPZqgo3g5BbLj1iiQl7cjzcnIIWgV7hoNvEqLU7FvCSmKj-rjOFvrOWdsNFc70olajRBhsYCD-ePvi6CbbUY';
 
 const fbApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(fbApp);
