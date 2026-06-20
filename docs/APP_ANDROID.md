@@ -63,7 +63,7 @@ Esto permite crear una aplicación Android funcional para:
   - Generar seguimiento.
   - Consultar estadísticas.
 
-- Institución responsable / Apoyo comunitario:
+- Apoyo comunitario:
   - Visualizar incidencias asignadas.
   - Actualizar avance.
   - Dar solución.
@@ -195,7 +195,7 @@ Colecciones recomendadas en Firestore:
 usuarios
 incidencias
 seguimientos
-instituciones
+apoyo_comunitario
 notificaciones
 ```
 
@@ -224,7 +224,7 @@ descripcion
 ubicacion
 imagenUrl
 estado
-institucionAsignada
+apoyoAsignado
 fechaRegistro
 fechaActualizacion
 ```

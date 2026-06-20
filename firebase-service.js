@@ -230,10 +230,10 @@ export async function obtenerTodasLasIncidencias() {
     .sort(ordenarPorFechaDesc);
 }
 
-export async function obtenerIncidenciasAsignadas(nombreInstitucion = 'Apoyo comunitario') {
+export async function obtenerIncidenciasAsignadas(nombreApoyo = 'Apoyo comunitario') {
   const q = query(
     collection(db, 'incidencias'),
-    where('asignadoA', '==', nombreInstitucion)
+    where('asignadoA', '==', nombreApoyo)
   );
 
   const snapshot = await getDocs(q);

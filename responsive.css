@@ -2,9 +2,49 @@
 
 /* Responsive extra para ConectaMartínez: teléfono, tablet y computadora */
 
+html {
+  /* Respeta el tamaño de fuente configurado en el sistema del usuario */
+  font-size: 100%;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 html, body {
   width: 100%;
   overflow-x: hidden;
+  /* Evita el gesto pull-to-refresh y el bounce en Android/iOS */
+  overscroll-behavior: none;
+}
+
+/* Fuente del sistema — usa la fuente nativa del dispositivo */
+body {
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Noto Sans',
+    sans-serif;
+}
+
+/* Mejor respuesta táctil en botones e interactivos */
+button, a, [role="button"], input, select, textarea, label {
+  touch-action: manipulation;
+}
+
+/* Safe areas para dispositivos con notch, punch-hole o barra de navegación */
+.bottom-nav {
+  padding-bottom: max(env(safe-area-inset-bottom), 8px);
+}
+
+.screen {
+  padding-top: max(env(safe-area-inset-top), 0px);
+  padding-left: max(env(safe-area-inset-left), 0px);
+  padding-right: max(env(safe-area-inset-right), 0px);
+}
+
+.topbar {
+  padding-top: max(env(safe-area-inset-top), 0px);
 }
 
 .mobile-app {
