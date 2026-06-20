@@ -7,7 +7,9 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
-  updateProfile
+  updateProfile,
+  GoogleAuthProvider,
+  signInWithPopup
 } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
 import {
   getFirestore,
@@ -57,6 +59,7 @@ const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 
 const dom = {
   welcomeScreen: $('#welcomeScreen'),
+  onboardingScreen: $('#onboardingScreen'),
   authScreen: $('#authScreen'),
   mainScreen: $('#mainScreen'),
   startBtn: $('#startBtn'),
@@ -233,8 +236,14 @@ function clearCommentSubscription() {
 }
 
 function showScreen(screenName) {
-  [dom.welcomeScreen, dom.authScreen, dom.mainScreen].forEach((screen) => screen?.classList.remove('active'));
-  const target = { welcome: dom.welcomeScreen, auth: dom.authScreen, main: dom.mainScreen }[screenName];
+  [dom.welcomeScreen, dom.onboardingScreen, dom.authScreen, dom.mainScreen]
+    .forEach(s => s?.classList.remove('active'));
+  const target = {
+    welcome: dom.welcomeScreen,
+    onboarding: dom.onboardingScreen,
+    auth: dom.authScreen,
+    main: dom.mainScreen
+  }[screenName];
   target?.classList.add('active');
 }
 
@@ -612,27 +621,17 @@ function renderProfileView() {
       </div>
     </div>
 
-    <div class="profile-menu">
-      <button class="profile-menu-item" data-ps="mis-reportes">
-        <span>Mis reportes</span><span class="menu-arrow">›</span>
-      </button>
-      <button class="profile-menu-item" data-ps="mis-datos">
-        <span>Mis datos</span><span class="menu-arrow">›</span>
-      </button>
-      <button class="profile-menu-item" data-ps="configuracion">
-        <span>Configuración</span><span class="menu-arrow">›</span>
-      </button>
-      <button class="profile-menu-item" data-ps="ayuda">
-        <span>Ayuda y soporte</span><span class="menu-arrow">›</span>
-      </button>
-      <button class="profile-menu-item" data-ps="acerca">
-        <span>Acerca de la app</span><span class="menu-arrow">›</span>
-      </button>
+    <div class="profile-menu-list">
+      <button class="profile-menu-card" data-ps="mis-reportes"><span>Mis reportes</span><span class="menu-arrow">›</span></button>
+      <button class="profile-menu-card" data-ps="mis-datos"><span>Mis datos</span><span class="menu-arrow">›</span></button>
+      <button class="profile-menu-card" data-ps="configuracion"><span>Configuración</span><span class="menu-arrow">›</span></button>
+      <button class="profile-menu-card" data-ps="ayuda"><span>Ayuda y soporte</span><span class="menu-arrow">›</span></button>
+      <button class="profile-menu-card" data-ps="acerca"><span>Acerca de la app</span><span class="menu-arrow">›</span></button>
     </div>
 
     <div id="profileSectionContent" class="profile-section-content"></div>
 
-    <button class="profile-logout" id="profileLogoutBtn" type="button">Cerrar sesión</button>
+    <button class="profile-logout-card" id="profileLogoutBtn" type="button">Cerrar sesión</button>
   `;
 
   dom.profileView.querySelectorAll('[data-ps]').forEach(btn => {
@@ -1156,90 +1155,109 @@ function exportReportsCsv() {
   URL.revokeObjectURL(url);
 }
 
-function openAbout() {
-  openModal('Acerca de Conecta Martínez', `
-    <div style="display:flex;flex-direction:column;gap:14px;">
-      <div style="text-align:center;padding:8px 0 4px;">
-        <div style="font-size:3rem;">🏙️</div>
-        <p style="color:var(--cyan);font-weight:800;margin:6px 0 0;font-size:1.1rem;">Conecta Martínez</p>
-        <p style="color:var(--muted);margin:4px 0 0;font-size:.9rem;font-style:italic;">"Juntos resolvemos más"</p>
-      </div>
-      <p style="color:var(--text);line-height:1.6;">Plataforma ciudadana digital para reportar, consultar y dar seguimiento a incidencias urbanas en <b>Martínez de la Torre, Veracruz</b>.</p>
-      <div style="display:grid;gap:10px;">
-        <div style="background:rgba(46,168,255,.1);border:1px solid rgba(46,168,255,.3);border-radius:16px;padding:14px;">
-          <b style="color:var(--blue);">📍 Reporta incidencias</b>
-          <p style="color:var(--muted);margin:4px 0 0;font-size:.9rem;">Baches, alumbrado, fugas de agua, basura, áreas verdes y más, con foto y ubicación GPS.</p>
-        </div>
-        <div style="background:rgba(168,85,247,.1);border:1px solid rgba(168,85,247,.3);border-radius:16px;padding:14px;">
-          <b style="color:var(--purple);">📊 Seguimiento en tiempo real</b>
-          <p style="color:var(--muted);margin:4px 0 0;font-size:.9rem;">Consulta el estado de cada reporte: Pendiente, En revisión, En proceso o Resuelto.</p>
-        </div>
-        <div style="background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.3);border-radius:16px;padding:14px;">
-          <b style="color:var(--green);">🗺️ Mapa comunitario</b>
-          <p style="color:var(--muted);margin:4px 0 0;font-size:.9rem;">Visualiza todas las incidencias activas en el mapa de tu municipio.</p>
-        </div>
-      </div>
-      <p style="color:var(--muted);font-size:.82rem;text-align:center;margin:4px 0 0;">Versión 2026 · Desarrollado con Firebase y tecnologías web abiertas.</p>
-    </div>
-  `);
+function toggleAboutCard() {
+  const card = $('#aboutCard');
+  if (!card) return;
+  card.classList.toggle('hidden');
 }
 
-function initCarousel() {
-  const track = document.getElementById('incidentCarousel');
-  const dotsContainer = document.getElementById('carouselDots');
-  if (!track || !dotsContainer) return;
+const ONBOARDING_SLIDES = [
+  { icon: '🕳️', cat: 'Baches y vialidades',    catDesc: 'Ayuda a mejorar calles y accesos de la comunidad.',       keyword: 'baches',    title: 'Reporta',  rest: 'en tu colonia.',       body: 'Ubica el punto exacto, agrega evidencia y consulta el avance del reporte.' },
+  { icon: '💡', cat: 'Alumbrado público',        catDesc: 'Mejora la iluminación y la seguridad nocturna.',          keyword: 'alumbrado', title: 'Reporta el', rest: 'en tu calle.',        body: 'Notifica luminarias apagadas o dañadas para una respuesta rápida del municipio.' },
+  { icon: '💧', cat: 'Fugas de agua',            catDesc: 'Señala problemas con el suministro de agua potable.',     keyword: 'fugas',     title: 'Reporta',  rest: 'en tu zona.',          body: 'Fotografía la fuga, marca la ubicación y recibe seguimiento de tu reporte.' },
+  { icon: '🗑️', cat: 'Recolección de basura',   catDesc: 'Mantén limpia tu comunidad reportando tiraderos.',        keyword: 'basura',    title: 'Combate la', rest: 'en tu colonia.',     body: 'Reporta acumulaciones o falta de recolección para agilizar la limpieza.' },
+  { icon: '🌳', cat: 'Áreas verdes',             catDesc: 'Cuida parques y zonas verdes de tu municipio.',           keyword: 'parques',   title: 'Cuida los', rest: 'de tu colonia.',      body: 'Informa sobre zonas verdes descuidadas para su mantenimiento oportuno.' },
+  { icon: '⚠️', cat: 'Seguridad y riesgos',     catDesc: 'Alerta sobre infraestructura peligrosa o zonas inseguras.', keyword: 'riesgos', title: 'Alerta sobre', rest: 'cercanos.',      body: 'Reporta infraestructura peligrosa o situaciones de riesgo en tu comunidad.' }
+];
 
-  const slides = Array.from(track.children);
+function initOnboarding() {
+  const track = $('#onboardingTrack');
+  const dotsEl = $('#onboardingDots');
+  const nextBtn = $('#nextOnboardingBtn');
+  if (!track || !dotsEl || !nextBtn) return;
+
+  track.innerHTML = ONBOARDING_SLIDES.map(s => `
+    <div class="onboarding-slide">
+      <div class="onboarding-card-img">
+        <div class="ob-icon">${s.icon}</div>
+        <h3>${s.cat}</h3>
+        <p>${s.catDesc}</p>
+      </div>
+      <div class="onboarding-text">
+        <h2>${s.title} <span class="ob-accent">${s.keyword}</span><br>${s.rest}</h2>
+        <p>${s.body}</p>
+      </div>
+    </div>
+  `).join('');
+
+  const total = ONBOARDING_SLIDES.length;
   let current = 0;
-  let autoTimer = null;
-  let touchStartX = 0;
+  let tx = 0;
 
-  // Crear dots
-  dotsContainer.innerHTML = slides.map((_, i) =>
-    `<button class="carousel-dot${i === 0 ? ' active' : ''}" data-i="${i}" aria-label="Slide ${i + 1}" type="button"></button>`
+  dotsEl.innerHTML = ONBOARDING_SLIDES.map((_, i) =>
+    `<button class="carousel-dot${i === 0 ? ' active' : ''}" data-i="${i}" type="button"></button>`
   ).join('');
 
-  function goTo(index) {
-    current = (index + slides.length) % slides.length;
+  function goTo(i) {
+    current = Math.max(0, Math.min(i, total - 1));
     track.style.transform = `translateX(-${current * 100}%)`;
-    dotsContainer.querySelectorAll('.carousel-dot').forEach((dot, i) =>
-      dot.classList.toggle('active', i === current)
-    );
+    dotsEl.querySelectorAll('.carousel-dot').forEach((d, idx) => d.classList.toggle('active', idx === current));
+    nextBtn.textContent = current === total - 1 ? 'Entrar' : '→';
   }
 
-  function startAuto() {
-    clearInterval(autoTimer);
-    autoTimer = setInterval(() => goTo(current + 1), 3200);
-  }
+  nextBtn.addEventListener('click', () => {
+    if (current < total - 1) goTo(current + 1);
+    else { setAuthMode('login'); showScreen('auth'); }
+  });
 
-  // Touch / swipe
-  track.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
+  // Swipe
+  let tx0 = 0;
+  track.addEventListener('touchstart', e => { tx0 = e.touches[0].clientX; }, { passive: true });
   track.addEventListener('touchend', e => {
-    const diff = touchStartX - e.changedTouches[0].clientX;
-    if (Math.abs(diff) > 40) {
-      goTo(current + (diff > 0 ? 1 : -1));
-      startAuto();
-    }
+    const diff = tx0 - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 40) goTo(current + (diff > 0 ? 1 : -1));
   }, { passive: true });
 
-  // Click en dots
-  dotsContainer.addEventListener('click', e => {
-    const dot = e.target.closest('.carousel-dot');
-    if (!dot) return;
-    goTo(Number(dot.dataset.i));
-    startAuto();
+  dotsEl.addEventListener('click', e => {
+    const d = e.target.closest('.carousel-dot');
+    if (d) goTo(Number(d.dataset.i));
   });
 
   goTo(0);
-  startAuto();
+}
+
+async function signInWithGoogle() {
+  const provider = new GoogleAuthProvider();
+  const msg = $('#authMessage');
+  try {
+    if (msg) { msg.className = 'message'; msg.textContent = 'Abriendo Google...'; }
+    const result = await signInWithPopup(auth, provider);
+    await ensureUserProfile(result.user, getRoleByEmail(result.user.email));
+    if (msg) { msg.className = 'message ok'; msg.textContent = 'Sesión iniciada con Google.'; }
+  } catch (error) {
+    if (msg) { msg.className = 'message err'; msg.textContent = `Error Google: ${error.code || error.message}`; }
+  }
 }
 
 function setupEvents() {
-  initCarousel();
-  dom.startBtn?.addEventListener('click', () => { setAuthMode('login'); showScreen('auth'); });
-  dom.aboutBtn?.addEventListener('click', openAbout);
+  // Welcome
+  dom.startBtn?.addEventListener('click', () => { initOnboarding(); showScreen('onboarding'); });
+  dom.aboutBtn?.addEventListener('click', toggleAboutCard);
+  $('#closeAboutBtn')?.addEventListener('click', toggleAboutCard);
+
+  // Onboarding
+  $('#skipOnboardingBtn')?.addEventListener('click', () => { setAuthMode('login'); showScreen('auth'); });
+
+  // Auth
   dom.toggleAuthBtn?.addEventListener('click', () => setAuthMode(state.authMode === 'login' ? 'register' : 'login'));
   dom.authForm?.addEventListener('submit', handleAuthSubmit);
+  $('#googleLoginBtn')?.addEventListener('click', signInWithGoogle);
+  $('#facebookLoginBtn')?.addEventListener('click', () => {
+    const msg = $('#authMessage');
+    if (msg) { msg.className = 'message'; msg.textContent = 'Inicio con Facebook próximamente disponible.'; }
+  });
+
+  // Main
   dom.logoutBtn?.addEventListener('click', async () => { await signOut(auth); });
   dom.closeModalBtn?.addEventListener('click', closeModal);
   dom.modal?.addEventListener('click', (event) => { if (event.target === dom.modal) closeModal(); });
