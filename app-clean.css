@@ -719,19 +719,31 @@ td { color: var(--muted); }
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  min-height: 50px;
+  gap: 10px;
+  min-height: 52px;
   border-radius: 18px;
-  border: 1px solid rgba(255,255,255,.2);
-  background: rgba(255,255,255,.1);
-  color: #fff;
+  border: none;
   font-size: .95rem;
   font-weight: 700;
-  transition: background .15s, transform .12s;
+  transition: filter .15s, transform .12s;
+  cursor: pointer;
 }
 .social-btn:active { transform: scale(.97); }
-.google-btn:hover { background: rgba(66,133,244,.2); }
-.facebook-btn:hover { background: rgba(24,119,242,.2); }
+
+.google-btn {
+  background: #fff;
+  color: #3c4043;
+  border: 1px solid #dadce0;
+  box-shadow: 0 1px 4px rgba(0,0,0,.25);
+}
+.google-btn:hover { filter: brightness(.96); }
+
+.facebook-btn {
+  background: #1877F2;
+  color: #fff;
+}
+.facebook-btn:hover { filter: brightness(1.08); }
+.facebook-btn svg path { fill: #fff; }
 
 /* =============================================
    PANTALLA DE LOGIN / AUTH
