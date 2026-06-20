@@ -345,13 +345,15 @@ td { color: var(--muted); }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 48px 24px 20px;
   flex: 1;
+  padding: 24px 16px 12px;
 }
 
 .welcome-logo-img {
-  width: min(310px, 82vw);
-  filter: drop-shadow(0 28px 60px rgba(80,190,255,.45));
+  width: min(420px, 92vw);
+  max-height: 68vh;
+  object-fit: contain;
+  filter: drop-shadow(0 32px 70px rgba(80,190,255,.5));
 }
 
 /* Tarjeta Acerca de — inline, colapsable */
@@ -411,8 +413,7 @@ td { color: var(--muted); }
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 20px 20px 0;
-  margin-top: auto;
+  padding: 16px 20px 32px;
 }
 
 .welcome-about-btn { color: var(--muted); font-weight: 700; }
