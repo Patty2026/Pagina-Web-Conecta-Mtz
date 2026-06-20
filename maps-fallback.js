@@ -147,50 +147,66 @@ function scheduleFallback(reason = '') {
   state.timer = setTimeout(renderFallbackMap, 220);
 }
 
+function buildMarker(L, map, item, position) {
+  const icon = L.divIcon({
+    className: 'conecta-marker',
+    html: `<span style="font-size:26px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.4))">${categoryIcon(item.categoriaClave || item.categoria)}</span>`,
+    iconSize: [32, 32], iconAnchor: [16, 16]
+  });
+  return L.marker(position, { icon })
+    .addTo(map)
+    .bindPopup(`<b>${esc(item.titulo || categoryLabel(item.categoriaClave || item.categoria))}</b><br><small>${esc(categoryLabel(item.categoriaClave || item.categoria))}</small><br><small>📍 ${esc(item.zona || item.colonia || item.direccion || 'Sin zona')}</small>`);
+}
+
 async function renderFallbackMap() {
   const container = $('#interactiveMap');
   if (!container || !$('#mapView')?.classList.contains('active')) return;
   if (!window.ConectaUseFallbackMap && !window.ConectaGoogleMapsFailed) return;
 
-  const points = filteredReports().map((item) => ({ item, coords: coords(item) })).filter((entry) => entry.coords);
+  const points = filteredReports()
+    .map((item) => ({ item, coords: coords(item) }))
+    .filter((entry) => entry.coords);
 
   if (!points.length) {
-    showMessage(container, 'No hay incidencias con GPS para mostrar.', cleanReason(state.reason));
+    if (!state.map) showMessage(container, 'No hay incidencias con GPS para mostrar.', cleanReason(state.reason));
     return;
   }
 
   try {
     const L = await ensureLeaflet();
-    if (state.map) {
-      try { state.map.remove(); } catch (_) {}
-      state.map = null;
+
+    // ── Mapa ya existe: actualizar marcadores sin recrear (evita parpadeo) ──
+    if (state.map && container.querySelector('#fallbackMapCanvas')) {
+      state.markers.forEach(m => { try { m.remove(); } catch (_) {} });
+      state.markers = points.map(({ item, coords: pos }) => buildMarker(L, state.map, item, pos));
+      if (points.length > 1) {
+        state.map.fitBounds(L.latLngBounds(points.map(e => e.coords)), { padding: [28, 28] });
+      }
+      state.map.invalidateSize();
+      return;
     }
 
-    container.innerHTML = '<div id="fallbackMapCanvas" style="width:100%;height:100%;min-height:420px;border-radius:24px;"></div>';
-    const map = L.map('fallbackMapCanvas', { zoomControl: true }).setView(points[0].coords || DEFAULT_CENTER, points.length ? 14 : 13);
+    // ── Primera vez: crear mapa desde cero ──
+    if (state.map) { try { state.map.remove(); } catch (_) {} state.map = null; }
+
+    container.innerHTML = '<div id="fallbackMapCanvas" style="width:100%;height:100%;"></div>';
+    const map = L.map('fallbackMapCanvas', { zoomControl: true })
+      .setView(points[0].coords || DEFAULT_CENTER, 14);
+
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap'
+      attribution: '© OpenStreetMap', maxZoom: 18
     }).addTo(map);
 
-    points.forEach(({ item, coords: position }) => {
-      const icon = L.divIcon({
-        className: 'conecta-marker',
-        html: `<span style="font-size:24px">${categoryIcon(item.categoriaClave || item.categoria)}</span>`,
-        iconSize: [30, 30]
-      });
-      L.marker(position, { icon }).addTo(map).bindPopup(`<b>${esc(item.titulo || categoryLabel(item.categoriaClave || item.categoria))}</b><br>${esc(categoryLabel(item.categoriaClave || item.categoria))}<br>${esc(item.zona || item.colonia || item.direccion || 'Sin zona')}`);
-    });
+    state.markers = points.map(({ item, coords: pos }) => buildMarker(L, map, item, pos));
 
     if (points.length > 1) {
-      const bounds = L.latLngBounds(points.map((entry) => entry.coords));
-      map.fitBounds(bounds, { padding: [28, 28] });
+      map.fitBounds(L.latLngBounds(points.map(e => e.coords)), { padding: [28, 28] });
     }
 
     state.map = map;
-    // Leaflet necesita recalcular dimensiones después de que el contenedor sea visible
     setTimeout(() => map.invalidateSize(), 120);
   } catch (error) {
-    showMessage(container, 'No se pudo cargar el mapa alternativo.', error?.message || 'Revisa tu conexión a internet.');
+    showMessage(container, 'No se pudo cargar el mapa.', error?.message || 'Revisa tu conexión a internet.');
   }
 }
 

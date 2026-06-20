@@ -9,7 +9,10 @@ import {
   signOut,
   updateProfile,
   GoogleAuthProvider,
-  signInWithPopup
+  FacebookAuthProvider,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult
 } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
 import {
   getFirestore,
@@ -617,17 +620,47 @@ function renderReportsView() {
   bindDynamicActions();
 }
 
+function mapPinList(items) {
+  return items.length
+    ? items.map((item) => `<div class="map-pin">${categoryIcon(item.categoriaClave || item.categoria)} ${safeText(item.zona || item.colonia || item.direccion, 'Sin zona')} · ${safeText(categoryLabel(item.categoriaClave || item.categoria), 'Incidencia')}</div>`).join('')
+    : '<div class="empty-state"><b>Sin ubicaciones GPS todavía.</b><small>Agrega ubicación al crear un reporte.</small></div>';
+}
+
 function renderMapView() {
   if (!dom.mapView) return;
   const items = getFilteredReports();
-  dom.mapView.innerHTML = `<article class="panel-card"><h2>Mapa de incidencias</h2><p>Marcadores en tiempo real por categoría. Las incidencias aparecen cuando el ciudadano agrega GPS al reportar.</p>${renderFilters()}</article><div id="interactiveMap" class="map-box"><div class="empty-state" style="padding:32px 16px;text-align:center;"><b>Cargando mapa…</b><br><small>Conectando con Firestore…</small></div></div><article class="panel-card"><h3>Ubicaciones registradas (${items.length})</h3>${items.length ? items.map((item) => `<div class="map-pin">${categoryIcon(item.categoriaClave || item.categoria)} ${safeText(item.zona || item.colonia || item.direccion, 'Sin zona')} · ${safeText(categoryLabel(item.categoriaClave || item.categoria), 'Incidencia')}</div>`).join('') : '<div class="empty-state"><b>Sin ubicaciones GPS todavía.</b><small>Agrega ubicación al crear un reporte.</small></div>'}</article>`;
+
+  // Si el mapa ya existe en el DOM: solo actualiza la lista (evita parpadeo)
+  if (dom.mapView.querySelector('#interactiveMap')) {
+    const listEl = dom.mapView.querySelector('.map-list-section');
+    if (listEl) listEl.innerHTML = mapPinList(items);
+    window.dispatchEvent(new CustomEvent('conecta-render-fallback-map', { detail: { reason: '' } }));
+    return;
+  }
+
+  // Primera vez: construye el HTML completo
+  dom.mapView.innerHTML = `
+    <article class="panel-card">
+      <h2>Mapa de incidencias</h2>
+      <p>Marcadores en tiempo real. Los reportes con GPS aparecen automáticamente.</p>
+      ${renderFilters()}
+    </article>
+    <div id="interactiveMap" class="map-box">
+      <div class="empty-state" style="padding:32px 16px;text-align:center;">
+        <b>Cargando mapa…</b><br><small>Conectando con Firestore…</small>
+      </div>
+    </div>
+    <article class="panel-card">
+      <h3>Ubicaciones registradas (${items.length})</h3>
+      <div class="map-list-section">${mapPinList(items)}</div>
+    </article>`;
+
   bindDynamicActions();
-  setTimeout(() => window.ConectaGoogleMapsAdapter?.render?.(), 120);
   setTimeout(() => {
     if (window.ConectaUseFallbackMap || window.ConectaGoogleMapsFailed) {
-      window.dispatchEvent(new CustomEvent('conecta-render-fallback-map', { detail: { reason: 'Usando mapa alternativo.' } }));
+      window.dispatchEvent(new CustomEvent('conecta-render-fallback-map', { detail: { reason: 'Mapa listo.' } }));
     }
-  }, 500);
+  }, 400);
 }
 
 function renderProfileView() {
@@ -833,7 +866,7 @@ function openReportForm() {
         <button type="button" id="btnCamera" class="btn-secondary">📷 Tomar foto</button>
         <button type="button" id="btnGallery" class="btn-secondary">🖼️ Elegir de galería</button>
       </div>
-      <input id="reportEvidenceCamera" type="file" accept="image/*" capture="environment" multiple style="display:none">
+      <input id="reportEvidenceCamera" type="file" accept="image/*" capture="environment" style="display:none">
       <input id="reportEvidenceGallery" type="file" accept="image/*" multiple style="display:none">
       <div id="evidencePreview" class="evidence-preview"></div>
     </div>
@@ -1268,18 +1301,46 @@ function initOnboarding() {
   goTo(0);
 }
 
-async function signInWithGoogle() {
-  const provider = new GoogleAuthProvider();
+async function signInWithSocial(provider, label) {
   const msg = $('#authMessage');
+  const setMsg = (cls, txt) => { if (msg) { msg.className = cls; msg.textContent = txt; } };
   try {
-    if (msg) { msg.className = 'message'; msg.textContent = 'Abriendo Google...'; }
+    setMsg('message', `Abriendo ${label}…`);
     const result = await signInWithPopup(auth, provider);
     await ensureUserProfile(result.user, getRoleByEmail(result.user.email));
-    if (msg) { msg.className = 'message ok'; msg.textContent = 'Sesión iniciada con Google.'; }
+    setMsg('message ok', `Sesión iniciada con ${label}.`);
   } catch (error) {
-    if (msg) { msg.className = 'message err'; msg.textContent = `Error Google: ${error.code || error.message}`; }
+    if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user') {
+      // Popup bloqueado (común en WebView/Android): usar redirect
+      setMsg('message', `Redirigiendo a ${label}…`);
+      await signInWithRedirect(auth, provider);
+    } else {
+      setMsg('message err', `Error ${label}: ${error.code || error.message}`);
+    }
   }
 }
+
+async function signInWithGoogle() {
+  const provider = new GoogleAuthProvider();
+  provider.addScope('email');
+  provider.addScope('profile');
+  await signInWithSocial(provider, 'Google');
+}
+
+async function signInWithFacebook() {
+  const provider = new FacebookAuthProvider();
+  provider.addScope('email');
+  provider.addScope('public_profile');
+  await signInWithSocial(provider, 'Facebook');
+}
+
+// Captura resultado del redirect (cuando regresa de Google/Facebook en móvil)
+getRedirectResult(auth).then(async (result) => {
+  if (!result?.user) return;
+  await ensureUserProfile(result.user, getRoleByEmail(result.user.email));
+}).catch((error) => {
+  if (error.code !== 'auth/no-current-user') console.warn('Redirect result:', error.code);
+});
 
 function setupEvents() {
   // Welcome
@@ -1294,10 +1355,7 @@ function setupEvents() {
   dom.toggleAuthBtn?.addEventListener('click', () => setAuthMode(state.authMode === 'login' ? 'register' : 'login'));
   dom.authForm?.addEventListener('submit', handleAuthSubmit);
   $('#googleLoginBtn')?.addEventListener('click', signInWithGoogle);
-  $('#facebookLoginBtn')?.addEventListener('click', () => {
-    const msg = $('#authMessage');
-    if (msg) { msg.className = 'message'; msg.textContent = 'Inicio con Facebook próximamente disponible.'; }
-  });
+  $('#facebookLoginBtn')?.addEventListener('click', signInWithFacebook);
 
   // Main
   dom.logoutBtn?.addEventListener('click', async () => { await signOut(auth); });
