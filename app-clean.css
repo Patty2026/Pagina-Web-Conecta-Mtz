@@ -344,40 +344,14 @@ td { color: var(--muted); }
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 56px 24px 24px;
-  text-align: center;
-  gap: 8px;
+  justify-content: center;
+  padding: 48px 24px 20px;
+  flex: 1;
 }
 
 .welcome-logo-img {
-  width: min(210px, 56vw);
-  filter: drop-shadow(0 22px 48px rgba(80,190,255,.4));
-  margin-bottom: 14px;
-}
-
-.welcome-app-name {
-  font-size: clamp(2.6rem, 10vw, 4.2rem);
-  font-weight: 900;
-  line-height: 1.05;
-  margin: 0;
-  display: flex;
-  gap: .18em;
-}
-.welcome-app-name span { color: #fff; }
-.name-accent {
-  background: linear-gradient(135deg, var(--cyan), var(--blue));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.welcome-slogan {
-  font-size: clamp(.88rem, 3.2vw, 1.1rem);
-  font-weight: 800;
-  color: var(--muted);
-  letter-spacing: .18em;
-  margin: 6px 0 0;
-  text-transform: uppercase;
+  width: min(310px, 82vw);
+  filter: drop-shadow(0 28px 60px rgba(80,190,255,.45));
 }
 
 /* Tarjeta Acerca de — inline, colapsable */
