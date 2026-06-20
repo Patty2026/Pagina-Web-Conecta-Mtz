@@ -25,7 +25,8 @@ const state = {
   markers: [],
   info: null,
   timer: null,
-  triedOwnQuery: false
+  triedOwnQuery: false,
+  googleRejected: false
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -104,7 +105,8 @@ function clearMarkers() {
 function message(container, title, detail = '') {
   container.innerHTML = `<div class="empty-state" style="margin:16px;"><b>${esc(title)}</b>${detail ? `<small>${esc(detail)}</small>` : ''}</div>`;
 }
-function activateFallback(reason = 'Google Maps no cargó correctamente.') {
+function activateFallback(reason = 'Google Maps no cargó correctamente. Se usará un mapa alternativo.') {
+  state.googleRejected = true;
   window.ConectaGoogleMapsFailed = true;
   window.ConectaUseFallbackMap = true;
   window.dispatchEvent(new CustomEvent('conecta-render-fallback-map', { detail: { reason } }));
@@ -113,7 +115,7 @@ function isGoogleError(container) {
   const text = clean(container?.textContent || '');
   return text.includes('Esta página no puede cargar Google Maps')
     || text.includes('Google Maps correctamente')
-    || Boolean(container?.querySelector('.gm-err-container, .gm-err-message, .gm-style-cc + div'));
+    || Boolean(container?.querySelector('.gm-err-container, .gm-err-message'));
 }
 function schedule(delay = 180) {
   clearTimeout(state.timer);
@@ -123,13 +125,14 @@ function renderGoogleMap() {
   const container = $('#interactiveMap');
   if (!container || !$('#mapView')?.classList.contains('active')) return;
 
-  if (window.ConectaGoogleMapsFailed || window.ConectaUseFallbackMap) {
-    activateFallback('Google Maps fue desactivado y se usará mapa alternativo.');
+  // Si Google rechazó la carga, usa respaldo. Si solo no hay puntos GPS, NO se desactiva Google Maps.
+  if (state.googleRejected || window.ConectaGoogleMapsFailed || window.ConectaUseFallbackMap) {
+    activateFallback('Google Maps no respondió correctamente. Se mostrará el mapa alternativo si hay ubicaciones GPS.');
     return;
   }
 
   if (!window.google?.maps) {
-    message(container, 'Google Maps está cargando...', 'Si no aparece, revisa la API Key, el dominio permitido y Maps JavaScript API.');
+    message(container, 'Google Maps está cargando...', 'Si tarda, revisa la API Key, el dominio permitido, Maps JavaScript API y facturación.');
     schedule(1400);
     return;
   }
@@ -162,7 +165,7 @@ function renderGoogleMap() {
     const empty = document.createElement('div');
     empty.className = 'empty-state';
     empty.style.margin = '16px';
-    empty.innerHTML = '<b>No hay incidencias con GPS para mostrar.</b><small>Al crear un reporte, usa “Capturar ubicación GPS”.</small>';
+    empty.innerHTML = '<b>No hay incidencias con GPS para mostrar.</b><small>El mapa ya está activo. Crea una incidencia y presiona “Capturar ubicación GPS” para ubicarla automáticamente.</small>';
     container.appendChild(empty);
     return;
   }
@@ -211,6 +214,7 @@ onAuthStateChanged(auth, (user) => {
   state.user = user || null;
   state.triedOwnQuery = false;
   state.reports = [];
+  state.googleRejected = false;
   if (state.unsubscribe) state.unsubscribe();
   if (!user) return;
   listenReports(user, false);
