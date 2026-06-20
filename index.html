@@ -106,9 +106,21 @@
       </div>
       <div id="modalBody"></div>
     </article>
+   <div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <article class="modal-card">
+      <div class="status-line">
+        <h3 id="modalTitle">Detalle</h3>
+        <button id="closeModalBtn" class="btn-secondary" type="button">Cerrar</button>
+      </div>
+      <div id="modalBody"></div>
+    </article>
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script type="module" src="./app-clean.js?v=20260619-gps-comments-map"></script>
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=TU_API_KEY&libraries=places"
+    defer>
+  </script>
+
+  <script type="module" src="./app-clean.js?v=google-maps"></script>
 </body>
 </html>
