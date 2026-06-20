@@ -1,101 +1,85 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Conecta Martínez | App Ciudadana</title>
-  <meta name="description" content="Aplicación ciudadana para reportes, seguimiento y apoyo comunitario en Martínez de la Torre." />
-  <meta name="theme-color" content="#07133c" />
-  <link rel="icon" href="./logo-conecta-martinez.png" />
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="./app-clean.css?v=202606-map-fix" />
 </head>
 <body>
-  <main class="app" id="appRoot">
-    <section id="welcomeScreen" class="screen active" aria-label="Bienvenida">
+  <main id="app" class="app">
+    <section id="welcomeScreen" class="screen active">
       <div class="logo-box">
         <img src="./logo-conecta-martinez.png" alt="Conecta Martínez" />
         <small>Juntos resolvemos más</small>
       </div>
-
-      <article class="hero-card">
+      <div class="hero-card">
         <h1>¡Bienvenido!</h1>
-        <p>Reporta incidencias, consulta avances y mantente conectado con tu comunidad.</p>
-      </article>
-
-      <div class="actions-row">
-        <button id="goLoginBtn" class="btn-primary full" type="button">Iniciar sesión</button>
-        <button id="goRegisterBtn" class="btn-secondary full" type="button">Crear cuenta</button>
+        <p>Reporta, consulta y da seguimiento a incidencias urbanas de Martínez de la Torre.</p>
+        <div class="actions-row">
+          <button id="startBtn" class="btn-primary full" type="button">Comenzar</button>
+          <button id="aboutBtn" class="btn-secondary full" type="button">Acerca de ConectaMartínez</button>
+        </div>
       </div>
     </section>
 
-    <section id="authScreen" class="screen" aria-label="Autenticación">
-      <div class="logo-box compact">
+    <section id="authScreen" class="screen">
+      <div class="logo-box">
         <img src="./logo-conecta-martinez.png" alt="Conecta Martínez" />
       </div>
-
       <article class="auth-card">
         <h2 id="authTitle">Iniciar sesión</h2>
         <p id="authSubtitle">Accede para continuar.</p>
-
-        <form id="authForm" class="form-grid" autocomplete="on">
-          <label>
-            Correo electrónico
-            <input id="authEmail" type="email" autocomplete="email" placeholder="correo@ejemplo.com" required />
+        <form id="authForm" class="form-grid">
+          <label>Nombre
+            <input id="nameInput" type="text" autocomplete="name" placeholder="Tu nombre" />
           </label>
-
-          <label>
-            Contraseña
-            <input id="authPassword" type="password" autocomplete="current-password" minlength="6" placeholder="Mínimo 6 caracteres" required />
+          <label>Correo electrónico
+            <input id="emailInput" type="email" autocomplete="email" required placeholder="correo@ejemplo.com" />
           </label>
-
-          <div id="registerFields" class="form-grid hidden">
-            <label>
-              Nombre
-              <input id="registerName" type="text" autocomplete="name" placeholder="Tu nombre" />
-            </label>
-
-            <label>
-              Tipo de cuenta
-              <select id="registerRole">
-                <option value="Ciudadano">Ciudadano</option>
-                <option value="Apoyo comunitario">Apoyo comunitario</option>
-              </select>
-            </label>
-          </div>
-
-          <button id="authSubmitBtn" class="btn-primary full" type="submit">Iniciar sesión</button>
-          <button id="toggleAuthBtn" class="btn-ghost full" type="button">No tengo cuenta, registrarme</button>
-          <button id="backWelcomeBtn" class="btn-secondary full" type="button">Volver</button>
-          <div id="authMessage" class="message" role="status" aria-live="polite"></div>
+          <label>Contraseña
+            <input id="passwordInput" type="password" autocomplete="current-password" required placeholder="Mínimo 6 caracteres" />
+          </label>
+          <label id="roleLabel">Tipo de usuario
+            <select id="roleInput">
+              <option value="Ciudadano">Ciudadano</option>
+              <option value="Apoyo comunitario">Apoyo comunitario</option>
+            </select>
+          </label>
+          <button id="authSubmit" class="btn-primary full" type="submit">Iniciar sesión</button>
         </form>
+        <button id="toggleAuthBtn" class="btn-ghost full" type="button">¿No tienes cuenta? Regístrate</button>
+        <p id="authMessage" class="message"></p>
       </article>
     </section>
 
-    <section id="mainScreen" class="screen" aria-label="Aplicación">
+    <section id="mainScreen" class="screen">
       <header class="topbar">
         <div class="user-line">
           <div id="userAvatar" class="avatar">C</div>
           <div>
-            <b id="userName">Conecta Martínez</b>
-            <small id="userRole">Sincronizando perfil...</small>
+            <b id="userName">Usuario</b>
+            <small id="userRole">Ciudadano</small>
           </div>
         </div>
         <button id="logoutBtn" class="btn-secondary" type="button">Salir</button>
       </header>
 
-      <section id="panelView" class="view active" aria-label="Panel principal"></section>
-      <section id="mapView" class="view" aria-label="Mapa"></section>
-      <section id="reportsView" class="view" aria-label="Reportes"></section>
-      <section id="profileView" class="view" aria-label="Perfil"></section>
+      <section id="panelView" class="view active"></section>
+      <section id="mapView" class="view"></section>
+      <section id="reportsView" class="view"></section>
+      <section id="profileView" class="view"></section>
+
+      <nav class="bottom-nav" aria-label="Navegación principal">
+        <button class="active" data-view="panel" type="button">Panel</button>
+        <button data-view="map" type="button">Mapa</button>
+        <button data-view="reports" type="button">Reportes</button>
+        <button data-view="profile" type="button">Perfil</button>
+      </nav>
     </section>
   </main>
-
-  <nav id="bottomNav" class="bottom-nav hidden" aria-label="Menú principal">
-    <button type="button" data-view="panel" class="active">Panel</button>
-    <button type="button" data-view="map">Mapa</button>
-    <button type="button" data-view="reports">Reportes</button>
-    <button type="button" data-view="profile">Perfil</button>
-  </nav>
 
   <div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <article class="modal-card">
@@ -118,10 +102,10 @@
       }));
     };
   </script>
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyArAW7ori6d5DpHW3lMEvLDl8q0iQl7spc&libraries=places" defer></script>
-  <script type="module" src="./app-clean.js?v=202606-map-fix"></script>
-  <script type="module" src="./google-maps-adapter.js?v=202606-map-fix"></script>
-  <script type="module" src="./maps-fallback.js?v=202606-map-fix"></script>
-  <script src="./ui-cleanup.js?v=202606-map-fix" defer></script>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyArAW7ori6d5DpHW3lMEvLDl8q0iQl7spc&libraries=places&loading=async" defer></script>
+  <script type="module" src="./app-clean.js?v=202606-map-fix-2"></script>
+  <script type="module" src="./google-maps-adapter.js?v=202606-map-fix-2"></script>
+  <script type="module" src="./maps-fallback.js?v=202606-map-fix-2"></script>
+  <script src="./ui-cleanup.js?v=202606-map-fix-2" defer></script>
 </body>
 </html>
