@@ -27,10 +27,19 @@ import {
   onSnapshot,
   serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
+import {
+  getMessaging,
+  getToken,
+  onMessage
+} from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging.js';
+
+// ── Clave VAPID pública: Firebase Console → Project Settings → Cloud Messaging → Web push certificates
+const VAPID_KEY = 'TU_VAPID_KEY_AQUI';
 
 const fbApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(fbApp);
 const db = getFirestore(fbApp);
+const messaging = (() => { try { return getMessaging(fbApp); } catch { return null; } })();
 
 const SUPERADMIN_EMAIL = 'adminp@gmail.com';
 const BASIC_ADMIN_EMAIL = 'adminb@gmail.com';
@@ -1347,6 +1356,45 @@ getRedirectResult(auth).then(async (result) => {
   if (error.code !== 'auth/no-current-user') console.warn('Redirect result:', error.code);
 });
 
+function showPushToast(title, body) {
+  const toast = document.createElement('div');
+  toast.className = 'push-toast';
+  toast.innerHTML = `<b>${escapeHTML(title)}</b><span>${escapeHTML(body)}</span>`;
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('visible'));
+  setTimeout(() => {
+    toast.classList.remove('visible');
+    setTimeout(() => toast.remove(), 400);
+  }, 4500);
+}
+
+async function initPushNotifications() {
+  if (!messaging || !('Notification' in window) || !('serviceWorker' in navigator)) return;
+  if (VAPID_KEY === 'TU_VAPID_KEY_AQUI') return; // espera a que se configure la clave
+  try {
+    const sw = await navigator.serviceWorker.register('./firebase-messaging-sw.js');
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return;
+
+    const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: sw });
+    if (token && state.user) {
+      await setDoc(doc(db, 'usuarios', state.user.uid), {
+        fcmToken: token,
+        fcmTokenPlatform: 'web',
+        fcmTokenUpdatedAt: serverTimestamp()
+      }, { merge: true });
+    }
+
+    onMessage(messaging, (payload) => {
+      const title = payload.notification?.title || 'Conecta Martínez';
+      const body  = payload.notification?.body  || '';
+      showPushToast(title, body);
+    });
+  } catch (err) {
+    console.warn('Push notifications no disponibles:', err?.code || err?.message);
+  }
+}
+
 function setupEvents() {
   // Welcome
   dom.startBtn?.addEventListener('click', () => { initOnboarding(); showScreen('onboarding'); });
@@ -1397,6 +1445,7 @@ onAuthStateChanged(auth, async (user) => {
   showScreen('main');
   setView('panel');
   startRealtime();
+  initPushNotifications();
 });
 
 window.addEventListener('error', (event) => {
