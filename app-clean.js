@@ -1313,10 +1313,12 @@ async function signInWithSocial(provider, label) {
     await ensureUserProfile(result.user, getRoleByEmail(result.user.email));
     setMsg('message ok', `Sesión iniciada con ${label}.`);
   } catch (error) {
-    if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user') {
-      // Popup bloqueado (común en WebView/Android): usar redirect
+    if (error.code === 'auth/popup-blocked') {
+      // Popup bloqueado por el navegador/WebView: redirige automáticamente
       setMsg('message', `Redirigiendo a ${label}…`);
       await signInWithRedirect(auth, provider);
+    } else if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+      setMsg('message', 'Inicio de sesión cancelado.');
     } else {
       setMsg('message err', `Error ${label}: ${error.code || error.message}`);
     }
