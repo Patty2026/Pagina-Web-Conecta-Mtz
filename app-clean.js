@@ -270,7 +270,7 @@ function showScreen(screenName) {
         s.classList.remove('active');
         s.style.transform = '';
         s.style.opacity = '';
-      }, 400);
+      }, 260);
     }
   });
 
@@ -1192,12 +1192,12 @@ function toggleAboutCard() {
 }
 
 const ONBOARDING_SLIDES = [
-  { icon: '🕳️', cat: 'Baches y vialidades',    catDesc: 'Ayuda a mejorar calles y accesos de la comunidad.',       keyword: 'baches',    title: 'Reporta',  rest: 'en tu colonia.',       body: 'Ubica el punto exacto, agrega evidencia y consulta el avance del reporte.' },
-  { icon: '💡', cat: 'Alumbrado público',        catDesc: 'Mejora la iluminación y la seguridad nocturna.',          keyword: 'alumbrado', title: 'Reporta el', rest: 'en tu calle.',        body: 'Notifica luminarias apagadas o dañadas para una respuesta rápida del municipio.' },
-  { icon: '💧', cat: 'Fugas de agua',            catDesc: 'Señala problemas con el suministro de agua potable.',     keyword: 'fugas',     title: 'Reporta',  rest: 'en tu zona.',          body: 'Fotografía la fuga, marca la ubicación y recibe seguimiento de tu reporte.' },
-  { icon: '🗑️', cat: 'Recolección de basura',   catDesc: 'Mantén limpia tu comunidad reportando tiraderos.',        keyword: 'basura',    title: 'Combate la', rest: 'en tu colonia.',     body: 'Reporta acumulaciones o falta de recolección para agilizar la limpieza.' },
-  { icon: '🌳', cat: 'Áreas verdes',             catDesc: 'Cuida parques y zonas verdes de tu municipio.',           keyword: 'parques',   title: 'Cuida los', rest: 'de tu colonia.',      body: 'Informa sobre zonas verdes descuidadas para su mantenimiento oportuno.' },
-  { icon: '⚠️', cat: 'Seguridad y riesgos',     catDesc: 'Alerta sobre infraestructura peligrosa o zonas inseguras.', keyword: 'riesgos', title: 'Alerta sobre', rest: 'cercanos.',      body: 'Reporta infraestructura peligrosa o situaciones de riesgo en tu comunidad.' }
+  { icon: '🕳️', anim: 'shake',  color: '#fb7185', cat: 'Baches y vialidades',   catDesc: 'Ayuda a mejorar calles y accesos de la comunidad.',          keyword: 'baches',    title: 'Reporta',    rest: 'en tu colonia.',   body: 'Ubica el punto exacto, agrega evidencia y consulta el avance del reporte.' },
+  { icon: '💡', anim: 'pulse',  color: '#fbbf24', cat: 'Alumbrado público',       catDesc: 'Mejora la iluminación y la seguridad nocturna.',             keyword: 'alumbrado', title: 'Reporta el', rest: 'en tu calle.',     body: 'Notifica luminarias apagadas o dañadas para una respuesta rápida del municipio.' },
+  { icon: '💧', anim: 'float',  color: '#22d3ee', cat: 'Fugas de agua',           catDesc: 'Señala problemas con el suministro de agua potable.',        keyword: 'fugas',     title: 'Reporta',    rest: 'en tu zona.',      body: 'Fotografía la fuga, marca la ubicación y recibe seguimiento de tu reporte.' },
+  { icon: '🗑️', anim: 'wiggle', color: '#a78bfa', cat: 'Recolección de basura',  catDesc: 'Mantén limpia tu comunidad reportando tiraderos.',           keyword: 'basura',    title: 'Combate la', rest: 'en tu colonia.',  body: 'Reporta acumulaciones o falta de recolección para agilizar la limpieza.' },
+  { icon: '🌳', anim: 'sway',   color: '#34d399', cat: 'Áreas verdes',            catDesc: 'Cuida parques y zonas verdes de tu municipio.',              keyword: 'parques',   title: 'Cuida los',  rest: 'de tu colonia.',  body: 'Informa sobre zonas verdes descuidadas para su mantenimiento oportuno.' },
+  { icon: '⚠️', anim: 'flash',  color: '#f97316', cat: 'Seguridad y riesgos',    catDesc: 'Alerta sobre infraestructura peligrosa o zonas inseguras.',  keyword: 'riesgos',   title: 'Alerta',     rest: 'en tu zona.',      body: 'Reporta infraestructura peligrosa o situaciones de riesgo en tu comunidad.' }
 ];
 
 function initOnboarding() {
@@ -1209,12 +1209,15 @@ function initOnboarding() {
   track.innerHTML = ONBOARDING_SLIDES.map(s => `
     <div class="onboarding-slide">
       <div class="onboarding-card-img">
-        <div class="ob-icon">${s.icon}</div>
+        <div class="ob-icon-outer">
+          <div class="ob-glow" style="background:${s.color};"></div>
+          <div class="ob-icon ob-anim-${s.anim}">${s.icon}</div>
+        </div>
         <h3>${s.cat}</h3>
         <p>${s.catDesc}</p>
       </div>
       <div class="onboarding-text">
-        <h2>${s.title} <span class="ob-accent">${s.keyword}</span><br>${s.rest}</h2>
+        <h2>${s.title} <span class="ob-accent" style="color:${s.color}">${s.keyword}</span><br>${s.rest}</h2>
         <p>${s.body}</p>
       </div>
     </div>
@@ -1232,7 +1235,16 @@ function initOnboarding() {
     current = Math.max(0, Math.min(i, total - 1));
     track.style.transform = `translateX(-${current * 100}%)`;
     dotsEl.querySelectorAll('.carousel-dot').forEach((d, idx) => d.classList.toggle('active', idx === current));
-    nextBtn.textContent = current === total - 1 ? 'Entrar' : '→';
+    nextBtn.textContent = current === total - 1 ? 'Entrar →' : '→';
+
+    // Animación de entrada del ícono del slide activo
+    const slides = track.querySelectorAll('.onboarding-slide');
+    const outer = slides[current]?.querySelector('.ob-icon-outer');
+    if (outer) {
+      outer.classList.remove('ob-entering');
+      void outer.offsetWidth;
+      outer.classList.add('ob-entering');
+    }
   }
 
   nextBtn.addEventListener('click', () => {
