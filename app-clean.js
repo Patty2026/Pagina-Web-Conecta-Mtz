@@ -1,4 +1,4 @@
-/* Conecta Martínez - app limpia y estable 2026 */
+/* Conecta Martínez - app limpia, estable y ampliada 2026 */
 
 import firebaseConfig from './firebase-config.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
@@ -17,7 +17,6 @@ import {
   addDoc,
   setDoc,
   updateDoc,
-  deleteDoc,
   getDoc,
   query,
   where,
@@ -32,6 +31,32 @@ const db = getFirestore(app);
 const SUPERADMIN_EMAIL = 'adminp@gmail.com';
 const BASIC_ADMIN_EMAIL = 'adminb@gmail.com';
 const ADMIN_EMAILS = new Set([SUPERADMIN_EMAIL, BASIC_ADMIN_EMAIL]);
+
+const DEFAULT_CENTER = [20.0703, -97.0608]; // Martínez de la Torre, Ver. aproximado
+const MAX_EVIDENCE_FILES = 2;
+const MAX_IMAGE_WIDTH = 900;
+const JPEG_QUALITY = 0.68;
+
+const CATEGORIES = [
+  ['baches', 'Baches en vialidades'],
+  ['alumbrado', 'Alumbrado público'],
+  ['basura', 'Recolección de basura'],
+  ['agua', 'Fugas de agua'],
+  ['areas_verdes', 'Áreas verdes'],
+  ['seguridad', 'Seguridad / Riesgo'],
+  ['otro', 'Otro']
+];
+
+const DEPARTMENTS = [
+  'Atención ciudadana',
+  'Obras públicas',
+  'Alumbrado público',
+  'Limpia pública',
+  'Agua potable',
+  'Parques y jardines',
+  'Protección civil',
+  'Tránsito municipal'
+];
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
@@ -80,14 +105,29 @@ const state = {
   users: [],
   admins: [],
   history: [],
+  comments: [],
   filters: {
     search: '',
     estado: 'todos',
+    categoria: 'todos',
+    departamento: 'todos',
     zona: '',
-    fecha: ''
+    fechaInicio: '',
+    fechaFin: ''
   },
-  unsubscribes: []
+  unsubscribes: [],
+  commentUnsubscribe: null,
+  mapInstance: null
 };
+
+function escapeHTML(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
 
 function setMessage(text, type = '') {
   if (!dom.authMessage) return;
@@ -117,6 +157,31 @@ function displayStatus(value) {
   }[estado] || 'Pendiente';
 }
 
+function getCategoryLabel(value) {
+  const clean = String(value || '').trim();
+  const found = CATEGORIES.find(([key, label]) => key === clean || label === clean);
+  return found ? found[1] : clean || 'Otro';
+}
+
+function getCategoryKey(value) {
+  const clean = String(value || '').trim();
+  const found = CATEGORIES.find(([key, label]) => key === clean || label === clean);
+  return found ? found[0] : 'otro';
+}
+
+function categoryIcon(value) {
+  const key = getCategoryKey(value);
+  return {
+    baches: '🕳️',
+    alumbrado: '💡',
+    basura: '🗑️',
+    agua: '💧',
+    areas_verdes: '🌳',
+    seguridad: '⚠️',
+    otro: '📍'
+  }[key] || '📍';
+}
+
 function getRoleByEmail(email, fallbackRole = 'Ciudadano') {
   const cleanEmail = normalizeEmail(email);
   if (cleanEmail === SUPERADMIN_EMAIL) return 'Superadmin';
@@ -136,9 +201,13 @@ function isSupport() {
   return state.role === 'Apoyo comunitario';
 }
 
+function canManageReports() {
+  return isAdmin() || isSupport();
+}
+
 function safeText(value, fallback = 'Sin dato') {
   const text = String(value ?? '').trim();
-  return text || fallback;
+  return escapeHTML(text || fallback);
 }
 
 function formatDate(value) {
@@ -148,8 +217,14 @@ function formatDate(value) {
   return date.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
+function getDate(value) {
+  if (!value) return null;
+  const date = value?.toDate ? value.toDate() : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function todayKey(value) {
-  const date = value?.toDate ? value.toDate() : new Date(value || Date.now());
+  const date = getDate(value) || new Date();
   return date.toISOString().slice(0, 10);
 }
 
@@ -158,18 +233,26 @@ function clearSubscriptions() {
     try { unsubscribe(); } catch (error) { console.warn('No se pudo cerrar listener', error); }
   });
   state.unsubscribes = [];
+  clearCommentSubscription();
+  if (state.mapInstance) {
+    try { state.mapInstance.remove(); } catch (error) { console.warn('No se pudo cerrar mapa', error); }
+    state.mapInstance = null;
+  }
+}
+
+function clearCommentSubscription() {
+  if (state.commentUnsubscribe) {
+    try { state.commentUnsubscribe(); } catch (error) { console.warn('No se pudo cerrar comentarios', error); }
+    state.commentUnsubscribe = null;
+  }
+  state.comments = [];
 }
 
 function showScreen(screenName) {
   [dom.welcomeScreen, dom.authScreen, dom.mainScreen].forEach((screen) => screen?.classList.remove('active'));
-  const target = {
-    welcome: dom.welcomeScreen,
-    auth: dom.authScreen,
-    main: dom.mainScreen
-  }[screenName];
+  const target = { welcome: dom.welcomeScreen, auth: dom.authScreen, main: dom.mainScreen }[screenName];
   target?.classList.add('active');
-  if (screenName === 'main') dom.bottomNav?.classList.remove('hidden');
-  else dom.bottomNav?.classList.add('hidden');
+  dom.bottomNav?.classList.toggle('hidden', screenName !== 'main');
 }
 
 function setAuthMode(mode) {
@@ -198,7 +281,7 @@ async function ensureUserProfile(user, selectedRole = 'Ciudadano', extra = {}) {
   const snap = await getDoc(userRef).catch(() => null);
   const existing = snap?.exists() ? snap.data() : {};
   const role = getRoleByEmail(email, existing.rol || selectedRole);
-  const nombre = safeText(extra.nombre || existing.nombre || user.displayName || email.split('@')[0], email.split('@')[0]);
+  const nombre = String(extra.nombre || existing.nombre || user.displayName || email.split('@')[0] || 'Usuario').trim();
 
   const payload = {
     uid: user.uid,
@@ -292,12 +375,9 @@ function startRealtime() {
     }
   }, (error) => console.error('Error perfil:', error)));
 
-  let reportsQuery;
-  if (isAdmin() || isSupport()) {
-    reportsQuery = collection(db, 'incidencias');
-  } else {
-    reportsQuery = query(collection(db, 'incidencias'), where('usuarioId', '==', state.user.uid));
-  }
+  const reportsQuery = canManageReports()
+    ? collection(db, 'incidencias')
+    : query(collection(db, 'incidencias'), where('usuarioId', '==', state.user.uid));
 
   state.unsubscribes.push(onSnapshot(reportsQuery, (snapshot) => {
     state.reports = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
@@ -308,14 +388,12 @@ function startRealtime() {
     renderAll();
   }));
 
-  if (isAdmin() || isSuperadmin()) {
+  if (isAdmin()) {
     state.unsubscribes.push(onSnapshot(collection(db, 'usuarios'), (snapshot) => {
       state.users = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
       renderAll();
     }, (error) => console.error('Error usuarios:', error)));
-  }
 
-  if (isAdmin()) {
     state.unsubscribes.push(onSnapshot(collection(db, 'administradores'), (snapshot) => {
       state.admins = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
       renderAll();
@@ -331,7 +409,7 @@ function startRealtime() {
 }
 
 function updateHeader() {
-  const name = safeText(state.profile?.nombre || state.user?.displayName || state.user?.email?.split('@')[0], 'Usuario');
+  const name = String(state.profile?.nombre || state.user?.displayName || state.user?.email?.split('@')[0] || 'Usuario').trim();
   dom.userName.textContent = name;
   dom.userRole.textContent = state.role;
   dom.userAvatar.textContent = name.charAt(0).toUpperCase();
@@ -351,7 +429,7 @@ function getMetrics() {
 }
 
 function metricCard(icon, value, label) {
-  return `<article class="metric"><span>${icon}</span><b>${value}</b><small>${label}</small></article>`;
+  return `<article class="metric"><span>${icon}</span><b>${value}</b><small>${escapeHTML(label)}</small></article>`;
 }
 
 function renderMetrics() {
@@ -380,22 +458,19 @@ function renderPanel() {
   const view = dom.panelView;
   if (!view) return;
 
-  if (isAdmin()) {
-    view.innerHTML = renderAdminPanel();
-  } else if (isSupport()) {
-    view.innerHTML = renderSupportPanel();
-  } else {
-    view.innerHTML = renderCitizenPanel();
-  }
+  if (isAdmin()) view.innerHTML = renderAdminPanel();
+  else if (isSupport()) view.innerHTML = renderSupportPanel();
+  else view.innerHTML = renderCitizenPanel();
+
   bindDynamicActions();
 }
 
 function renderCitizenPanel() {
-  return `<article class="panel-card"><h2>Panel ciudadano</h2><p>Reporta incidencias y consulta el avance de tus solicitudes.</p><button class="btn-primary full" data-action="open-report-form">+ Nueva incidencia</button></article>${renderMetrics()}${renderReportList(state.reports.slice(0, 5), 'No hay incidencias registradas todavía.')}`;
+  return `<article class="panel-card"><h2>Panel ciudadano</h2><p>Reporta incidencias con GPS, evidencia fotográfica y seguimiento de estado.</p><button class="btn-primary full" data-action="open-report-form">+ Nueva incidencia</button></article>${renderMetrics()}${renderReportList(state.reports.slice(0, 5), 'No hay incidencias registradas todavía.')}`;
 }
 
 function renderSupportPanel() {
-  return `<article class="panel-card"><h2>Panel de Apoyo Comunitario</h2><p>Atiende incidencias registradas por la ciudadanía.</p></article>${renderMetrics()}${renderReportList(state.reports, 'No hay incidencias registradas todavía.', true)}`;
+  return `<article class="panel-card"><h2>Panel de Apoyo Comunitario</h2><p>Atiende incidencias registradas por la ciudadanía.</p></article>${renderMetrics()}${renderReportList(getFilteredReports(), 'No hay incidencias registradas todavía.', true)}`;
 }
 
 function renderAdminPanel() {
@@ -417,7 +492,7 @@ function labelTab(tab) {
 }
 
 function renderAdminSummary() {
-  return `${renderMetrics()}<article class="panel-card"><h3>Actividad reciente</h3>${renderReportList(state.reports.slice(0, 6), 'No hay actividad reciente.')}</article>`;
+  return `${renderMetrics()}<article class="panel-card"><h3>Actividad reciente</h3>${renderReportList(state.reports.slice(0, 6), 'No hay actividad reciente.', true)}</article>`;
 }
 
 function renderIncidentsTools() {
@@ -426,28 +501,37 @@ function renderIncidentsTools() {
 }
 
 function renderFilters() {
+  const categoryOptions = ['<option value="todos">Todas las categorías</option>', ...CATEGORIES.map(([key, label]) => `<option value="${key}" ${state.filters.categoria === key ? 'selected' : ''}>${label}</option>`)].join('');
+  const deptOptions = ['<option value="todos">Todos los departamentos</option>', ...DEPARTMENTS.map((dept) => `<option value="${escapeHTML(dept)}" ${state.filters.departamento === dept ? 'selected' : ''}>${escapeHTML(dept)}</option>`)].join('');
   return `<div class="filter-grid">
-    <input id="filterSearch" placeholder="Buscar incidencia" value="${state.filters.search}">
-    <select id="filterEstado"><option value="todos">Todos</option><option value="pendiente">Pendientes</option><option value="en_proceso">En proceso</option><option value="resuelto">Resueltos</option><option value="cancelado">Cancelados</option></select>
-    <input id="filterZona" placeholder="Colonia o zona" value="${state.filters.zona}">
-    <input id="filterFecha" type="date" value="${state.filters.fecha}">
+    <input id="filterSearch" placeholder="Buscar incidencia" value="${escapeHTML(state.filters.search)}">
+    <select id="filterEstado"><option value="todos">Todos</option><option value="pendiente" ${state.filters.estado === 'pendiente' ? 'selected' : ''}>Pendientes</option><option value="en_proceso" ${state.filters.estado === 'en_proceso' ? 'selected' : ''}>En proceso</option><option value="resuelto" ${state.filters.estado === 'resuelto' ? 'selected' : ''}>Resueltos</option><option value="cancelado" ${state.filters.estado === 'cancelado' ? 'selected' : ''}>Cancelados</option></select>
+    <select id="filterCategoria">${categoryOptions}</select>
+    <select id="filterDepartamento">${deptOptions}</select>
+    <input id="filterZona" placeholder="Colonia o zona" value="${escapeHTML(state.filters.zona)}">
+    <input id="filterFechaInicio" type="date" value="${escapeHTML(state.filters.fechaInicio)}">
+    <input id="filterFechaFin" type="date" value="${escapeHTML(state.filters.fechaFin)}">
   </div>`;
 }
 
 function getFilteredReports() {
   return state.reports.filter((item) => {
-    const searchText = `${item.titulo || ''} ${item.descripcion || ''} ${item.categoria || ''} ${item.zona || ''} ${item.colonia || ''}`.toLowerCase();
+    const searchText = `${item.titulo || ''} ${item.descripcion || ''} ${item.categoria || ''} ${item.zona || ''} ${item.colonia || ''} ${item.departamento || ''}`.toLowerCase();
     const matchesSearch = !state.filters.search || searchText.includes(state.filters.search.toLowerCase());
     const matchesStatus = state.filters.estado === 'todos' || normalizeStatus(item.estado) === state.filters.estado;
-    const zone = `${item.zona || ''} ${item.colonia || ''}`.toLowerCase();
+    const matchesCategory = state.filters.categoria === 'todos' || getCategoryKey(item.categoriaClave || item.categoria) === state.filters.categoria;
+    const matchesDepartment = state.filters.departamento === 'todos' || String(item.departamento || '').trim() === state.filters.departamento;
+    const zone = `${item.zona || ''} ${item.colonia || ''} ${item.direccion || ''}`.toLowerCase();
     const matchesZone = !state.filters.zona || zone.includes(state.filters.zona.toLowerCase());
-    const matchesDate = !state.filters.fecha || todayKey(item.fecha || item.fechaCreacion || item.createdAt) === state.filters.fecha;
-    return matchesSearch && matchesStatus && matchesZone && matchesDate;
+    const dateKey = todayKey(item.fecha || item.fechaCreacion || item.createdAt);
+    const matchesStart = !state.filters.fechaInicio || dateKey >= state.filters.fechaInicio;
+    const matchesEnd = !state.filters.fechaFin || dateKey <= state.filters.fechaFin;
+    return matchesSearch && matchesStatus && matchesCategory && matchesDepartment && matchesZone && matchesStart && matchesEnd;
   });
 }
 
 function renderReportList(items, emptyText, allowActions = false) {
-  if (!items.length) return `<div class="empty-state"><b>${emptyText}</b><small>Última actualización: ahora</small></div>`;
+  if (!items.length) return `<div class="empty-state"><b>${escapeHTML(emptyText)}</b><small>Última actualización: ahora</small></div>`;
   return `<div class="list">${items.map((item) => renderReportCard(item, allowActions)).join('')}</div>`;
 }
 
@@ -456,8 +540,24 @@ function renderReportCard(item, allowActions = false) {
   const title = safeText(item.titulo || item.categoria, 'Incidencia ciudadana');
   const desc = safeText(item.descripcion, 'Sin descripción');
   const zone = safeText(item.zona || item.colonia || item.direccion, 'Zona no especificada');
-  const actions = allowActions ? `<div class="item-actions"><button class="btn-secondary" data-action="change-status" data-id="${item.id}" data-status="en_proceso">En proceso</button><button class="btn-secondary" data-action="change-status" data-id="${item.id}" data-status="resuelto">Resolver</button><button class="btn-danger" data-action="change-status" data-id="${item.id}" data-status="cancelado">Cancelar</button></div>` : '';
-  return `<article class="item-card"><div><b>${title}</b><span class="badge ${estado}">${displayStatus(estado)}</span><small>${desc}</small><small>📍 ${zone}</small><small>🕒 ${formatDate(item.fecha || item.fechaCreacion || item.createdAt)}</small></div>${actions}</article>`;
+  const dept = safeText(item.departamento, 'Sin departamento');
+  const categoria = safeText(getCategoryLabel(item.categoriaClave || item.categoria), 'Otro');
+  const evidenceCount = Array.isArray(item.evidencias) ? item.evidencias.length : Number(item.evidenciaCount || 0);
+  const coords = getReportLatLng(item);
+  const coordText = coords ? `<small>🧭 ${coords[0].toFixed(5)}, ${coords[1].toFixed(5)}</small>` : '';
+  const adminActions = allowActions ? `<div class="item-actions">
+      <button class="btn-secondary" data-action="open-report-detail" data-id="${item.id}">Detalle / comentarios</button>
+      <button class="btn-secondary" data-action="change-status" data-id="${item.id}" data-status="en_proceso">En proceso</button>
+      <button class="btn-secondary" data-action="change-status" data-id="${item.id}" data-status="resuelto">Resolver</button>
+      <button class="btn-danger" data-action="change-status" data-id="${item.id}" data-status="cancelado">Cancelar</button>
+      ${renderDepartmentSelect(item)}
+    </div>` : `<div class="item-actions"><button class="btn-secondary" data-action="open-report-detail" data-id="${item.id}">Detalle / comentarios</button></div>`;
+  return `<article class="item-card"><div><b>${categoryIcon(item.categoriaClave || item.categoria)} ${title}</b><span class="badge ${estado}">${displayStatus(estado)}</span><small>${desc}</small><small>🏷️ ${categoria}</small><small>🏛️ ${dept}</small><small>📍 ${zone}</small>${coordText}<small>📷 Evidencias: ${evidenceCount}</small><small>🕒 ${formatDate(item.fecha || item.fechaCreacion || item.createdAt)}</small></div>${adminActions}</article>`;
+}
+
+function renderDepartmentSelect(item) {
+  const options = ['<option value="">Asignar departamento</option>', ...DEPARTMENTS.map((dept) => `<option value="${escapeHTML(dept)}" ${item.departamento === dept ? 'selected' : ''}>${escapeHTML(dept)}</option>`)].join('');
+  return `<select class="dept-select" data-action="assign-department" data-id="${item.id}">${options}</select>`;
 }
 
 function renderAdminsSection() {
@@ -483,13 +583,56 @@ function renderHistorySection() {
 }
 
 function renderReportsView() {
-  dom.reportsView.innerHTML = `<article class="panel-card"><h2>Reportes</h2><p>Consulta incidencias sincronizadas con Firestore.</p>${isAdmin() ? renderFilters() : ''}</article>${renderReportList(isAdmin() ? getFilteredReports() : state.reports, 'No hay incidencias registradas todavía.', isAdmin() || isSupport())}`;
+  dom.reportsView.innerHTML = `<article class="panel-card"><h2>Reportes</h2><p>Consulta incidencias sincronizadas con Firestore.</p>${renderFilters()}<div class="actions-row"><button class="btn-primary" data-action="open-report-form">Nueva incidencia</button>${canManageReports() ? '<button class="btn-secondary" data-action="export-csv">Exportar CSV</button>' : ''}</div></article>${renderReportList(getFilteredReports(), 'No hay incidencias registradas todavía.', canManageReports())}`;
   bindDynamicActions();
 }
 
 function renderMapView() {
-  const items = isAdmin() || isSupport() ? state.reports : state.reports;
-  dom.mapView.innerHTML = `<article class="panel-card"><h2>Mapa de incidencias</h2><p>Vista ligera para evitar bloqueos. Las ubicaciones se muestran como puntos de referencia.</p></article><div class="map-box">${items.length ? items.map((item) => `<div class="map-pin">📍 ${safeText(item.zona || item.colonia || item.direccion, 'Ubicación registrada')} · ${safeText(item.categoria || item.titulo, 'Incidencia')}</div>`).join('') : '<div class="empty-state"><b>No hay ubicaciones registradas.</b></div>'}</div>`;
+  const items = getFilteredReports();
+  dom.mapView.innerHTML = `<article class="panel-card"><h2>Mapa de incidencias</h2><p>Mapa interactivo con marcadores por categoría. Usa GPS al crear una incidencia para ubicarla automáticamente.</p>${renderFilters()}</article><div id="interactiveMap" class="map-box" style="height:420px; padding:0; overflow:hidden;"></div><article class="panel-card"><h3>Ubicaciones registradas</h3>${items.length ? items.map((item) => `<div class="map-pin">${categoryIcon(item.categoriaClave || item.categoria)} ${safeText(item.zona || item.colonia || item.direccion, 'Ubicación registrada')} · ${safeText(getCategoryLabel(item.categoriaClave || item.categoria), 'Incidencia')}</div>`).join('') : '<div class="empty-state"><b>No hay ubicaciones registradas.</b></div>'}</article>`;
+  bindDynamicActions();
+  window.setTimeout(renderLeafletMap, 80);
+}
+
+function getReportLatLng(item) {
+  const lat = Number(item.latitud ?? item.ubicacion?.lat ?? item.ubicacion?.latitude);
+  const lng = Number(item.longitud ?? item.ubicacion?.lng ?? item.ubicacion?.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return [lat, lng];
+}
+
+function renderLeafletMap() {
+  if (state.activeView !== 'map') return;
+  const container = $('#interactiveMap');
+  if (!container) return;
+  if (!window.L) {
+    container.innerHTML = '<div class="empty-state"><b>No se pudo cargar el mapa interactivo.</b><small>Revisa tu conexión a internet.</small></div>';
+    return;
+  }
+  if (state.mapInstance) {
+    try { state.mapInstance.remove(); } catch (error) { console.warn('Mapa anterior no cerrado', error); }
+    state.mapInstance = null;
+  }
+
+  const L = window.L;
+  const points = getFilteredReports().map((item) => ({ item, coords: getReportLatLng(item) })).filter((entry) => entry.coords);
+  const center = points[0]?.coords || DEFAULT_CENTER;
+  const map = L.map(container, { zoomControl: true }).setView(center, points.length ? 14 : 13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
+
+  points.forEach(({ item, coords }) => {
+    const icon = L.divIcon({ className: 'conecta-marker', html: `<span style="font-size:24px">${categoryIcon(item.categoriaClave || item.categoria)}</span>`, iconSize: [28, 28] });
+    L.marker(coords, { icon }).addTo(map).bindPopup(`<b>${safeText(item.titulo || item.categoria, 'Incidencia')}</b><br>${displayStatus(item.estado)}<br>${safeText(item.zona || item.colonia || '', 'Sin zona')}`);
+  });
+
+  if (points.length > 1) {
+    const bounds = L.latLngBounds(points.map((entry) => entry.coords));
+    map.fitBounds(bounds, { padding: [28, 28] });
+  }
+
+  state.mapInstance = map;
 }
 
 function renderProfileView() {
@@ -529,65 +672,160 @@ function bindDynamicActions() {
     button.onclick = () => { state.panelTab = button.dataset.tab; renderPanel(); };
   });
   $$('[data-action="open-report-form"]').forEach((button) => button.onclick = openReportForm);
+  $$('[data-action="open-report-detail"]').forEach((button) => button.onclick = () => openReportDetail(button.dataset.id));
   $$('[data-action="open-admin-form"]').forEach((button) => button.onclick = () => openAdminForm());
   $$('[data-action="edit-admin"]').forEach((button) => button.onclick = () => openAdminForm(button.dataset.id));
   $$('[data-action="toggle-admin"]').forEach((button) => button.onclick = () => toggleAdmin(button.dataset.id));
   $$('[data-action="change-status"]').forEach((button) => button.onclick = () => changeReportStatus(button.dataset.id, button.dataset.status));
   $$('[data-action="export-csv"]').forEach((button) => button.onclick = exportReportsCsv);
-  ['filterSearch', 'filterEstado', 'filterZona', 'filterFecha'].forEach((id) => {
+  $$('[data-action="assign-department"]').forEach((select) => select.onchange = () => assignDepartment(select.dataset.id, select.value));
+  ['filterSearch', 'filterEstado', 'filterCategoria', 'filterDepartamento', 'filterZona', 'filterFechaInicio', 'filterFechaFin'].forEach((id) => {
     const input = $(`#${id}`);
     if (!input) return;
-    if (id === 'filterEstado') input.value = state.filters.estado;
     input.oninput = () => {
       state.filters.search = $('#filterSearch')?.value || '';
       state.filters.estado = $('#filterEstado')?.value || 'todos';
+      state.filters.categoria = $('#filterCategoria')?.value || 'todos';
+      state.filters.departamento = $('#filterDepartamento')?.value || 'todos';
       state.filters.zona = $('#filterZona')?.value || '';
-      state.filters.fecha = $('#filterFecha')?.value || '';
+      state.filters.fechaInicio = $('#filterFechaInicio')?.value || '';
+      state.filters.fechaFin = $('#filterFechaFin')?.value || '';
       renderAll();
     };
   });
 }
 
 function openModal(title, body) {
+  clearCommentSubscription();
   dom.modalTitle.textContent = title;
   dom.modalBody.innerHTML = body;
   dom.modal.classList.add('active');
 }
 
 function closeModal() {
+  clearCommentSubscription();
   dom.modal.classList.remove('active');
   dom.modalBody.innerHTML = '';
 }
 
 function openReportForm() {
-  openModal('Nueva incidencia', `<form id="newReportForm" class="form-grid"><label>Título<input id="newReportTitle" placeholder="Ej. Fuga de agua"></label><label>Descripción<textarea id="newReportDesc" required></textarea></label><label>Categoría<select id="newReportCategory"><option>Alumbrado público</option><option>Baches en vialidades</option><option>Fugas de agua</option><option>Recolección de basura</option><option>Áreas verdes</option><option>Otro</option></select></label><label>Colonia o zona<input id="newReportZone" placeholder="Colonia, calle o referencia"></label><button class="btn-primary full" type="submit">Guardar incidencia</button><div id="newReportMessage" class="message"></div></form>`);
+  const categoryOptions = CATEGORIES.map(([key, label]) => `<option value="${key}">${label}</option>`).join('');
+  const deptOptions = DEPARTMENTS.map((dept) => `<option value="${escapeHTML(dept)}">${escapeHTML(dept)}</option>`).join('');
+  openModal('Nueva incidencia', `<form id="newReportForm" class="form-grid">
+    <label>Título<input id="newReportTitle" placeholder="Ej. Fuga de agua"></label>
+    <label>Descripción<textarea id="newReportDesc" required placeholder="Describe claramente el problema"></textarea></label>
+    <label>Categoría<select id="newReportCategory">${categoryOptions}</select></label>
+    <label>Departamento sugerido<select id="newReportDepartment">${deptOptions}</select></label>
+    <label>Colonia o zona<input id="newReportZone" placeholder="Colonia, calle o referencia"></label>
+    <input id="newReportLat" type="hidden"><input id="newReportLng" type="hidden">
+    <button class="btn-secondary full" id="gpsBtn" type="button">📍 Capturar ubicación GPS</button>
+    <label>Fotografías de evidencia<input id="newReportFiles" type="file" accept="image/*" capture="environment" multiple></label>
+    <small class="message">Puedes adjuntar hasta ${MAX_EVIDENCE_FILES} fotos. Se comprimen para Firestore.</small>
+    <button class="btn-primary full" type="submit">Guardar incidencia</button>
+    <div id="newReportMessage" class="message"></div>
+  </form>`);
   $('#newReportForm').onsubmit = createReport;
+  $('#gpsBtn').onclick = captureGPS;
+}
+
+function captureGPS() {
+  const msg = $('#newReportMessage');
+  if (!navigator.geolocation) {
+    msg.className = 'message err';
+    msg.textContent = 'Este dispositivo no permite geolocalización.';
+    return;
+  }
+  msg.className = 'message';
+  msg.textContent = 'Solicitando ubicación GPS...';
+  navigator.geolocation.getCurrentPosition((position) => {
+    $('#newReportLat').value = String(position.coords.latitude);
+    $('#newReportLng').value = String(position.coords.longitude);
+    msg.className = 'message ok';
+    msg.textContent = `Ubicación capturada: ${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)}`;
+  }, (error) => {
+    msg.className = 'message err';
+    msg.textContent = `No se pudo obtener GPS: ${error.message}`;
+  }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
 }
 
 async function createReport(event) {
   event.preventDefault();
   const msg = $('#newReportMessage');
-  msg.textContent = 'Guardando incidencia...';
+  msg.className = 'message';
+  msg.textContent = 'Procesando evidencia y guardando incidencia...';
   try {
+    const files = Array.from($('#newReportFiles')?.files || []).slice(0, MAX_EVIDENCE_FILES);
+    const evidencias = [];
+    for (const file of files) {
+      const evidence = await compressImageFile(file);
+      if (evidence) evidencias.push(evidence);
+    }
+
+    const categoriaClave = $('#newReportCategory').value;
+    const lat = Number($('#newReportLat').value);
+    const lng = Number($('#newReportLng').value);
+    const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
+
     await addDoc(collection(db, 'incidencias'), {
-      titulo: $('#newReportTitle').value.trim() || $('#newReportCategory').value,
+      titulo: $('#newReportTitle').value.trim() || getCategoryLabel(categoriaClave),
       descripcion: $('#newReportDesc').value.trim(),
-      categoria: $('#newReportCategory').value,
+      categoria: getCategoryLabel(categoriaClave),
+      categoriaClave,
+      departamento: $('#newReportDepartment').value,
       zona: $('#newReportZone').value.trim(),
       estado: 'pendiente',
       usuarioId: state.user.uid,
       idCiudadano: state.user.uid,
       correoUsuario: normalizeEmail(state.user.email),
+      nombreUsuario: state.profile?.nombre || state.user.displayName || state.user.email,
+      latitud: hasCoords ? lat : null,
+      longitud: hasCoords ? lng : null,
+      ubicacion: hasCoords ? { lat, lng } : null,
+      evidencias,
+      evidenciaCount: evidencias.length,
+      comentariosCount: 0,
       fecha: serverTimestamp(),
-      fechaCreacion: serverTimestamp()
+      fechaCreacion: serverTimestamp(),
+      fechaActualizacion: serverTimestamp()
     });
     msg.className = 'message ok';
     msg.textContent = 'Incidencia registrada correctamente.';
-    setTimeout(closeModal, 800);
+    setTimeout(closeModal, 900);
   } catch (error) {
     msg.className = 'message err';
     msg.textContent = `Error: ${error.code || error.message}`;
   }
+}
+
+function compressImageFile(file) {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith('image/')) return resolve(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, MAX_IMAGE_WIDTH / img.width);
+        const width = Math.round(img.width * scale);
+        const height = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve({
+          nombre: file.name,
+          tipo: 'image/jpeg',
+          tamanoOriginal: file.size,
+          dataUrl: canvas.toDataURL('image/jpeg', JPEG_QUALITY),
+          fecha: new Date().toISOString()
+        });
+      };
+      img.onerror = () => resolve(null);
+      img.src = reader.result;
+    };
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
 }
 
 async function changeReportStatus(id, status) {
@@ -598,6 +836,91 @@ async function changeReportStatus(id, status) {
     }
   } catch (error) {
     alert(`No se pudo actualizar: ${error.code || error.message}`);
+  }
+}
+
+async function assignDepartment(id, departamento) {
+  if (!departamento) return;
+  try {
+    await updateDoc(doc(db, 'incidencias', id), { departamento, fechaActualizacion: serverTimestamp() });
+    if (isSuperadmin()) {
+      await addDoc(collection(db, 'auditoria_admin'), { accion: 'Asignación de departamento', detalle: `${id} → ${departamento}`, correo: state.user.email, fecha: serverTimestamp() });
+    }
+  } catch (error) {
+    alert(`No se pudo asignar departamento: ${error.code || error.message}`);
+  }
+}
+
+function openReportDetail(reportId) {
+  const item = state.reports.find((report) => report.id === reportId);
+  if (!item) return;
+  const evidencias = Array.isArray(item.evidencias) ? item.evidencias : [];
+  const evidenceHTML = evidencias.length
+    ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:12px 0;">${evidencias.map((e) => `<a href="${e.dataUrl}" target="_blank" rel="noopener"><img src="${e.dataUrl}" alt="Evidencia" style="width:100%;height:110px;object-fit:cover;border-radius:14px;border:1px solid rgba(255,255,255,.18);"></a>`).join('')}</div>`
+    : '<div class="empty-state"><b>Sin fotografías de evidencia.</b></div>';
+  const coords = getReportLatLng(item);
+  openModal('Detalle de incidencia', `<article class="panel-card">
+    <h3>${safeText(item.titulo || item.categoria, 'Incidencia')}</h3>
+    <span class="badge ${normalizeStatus(item.estado)}">${displayStatus(item.estado)}</span>
+    <p>${safeText(item.descripcion, 'Sin descripción')}</p>
+    <small>🏷️ ${safeText(getCategoryLabel(item.categoriaClave || item.categoria), 'Otro')}</small><br>
+    <small>🏛️ ${safeText(item.departamento, 'Sin departamento')}</small><br>
+    <small>📍 ${safeText(item.zona || item.colonia || item.direccion, 'Sin zona')}</small><br>
+    ${coords ? `<small>🧭 ${coords[0].toFixed(5)}, ${coords[1].toFixed(5)}</small><br>` : ''}
+    <small>🕒 ${formatDate(item.fecha || item.fechaCreacion || item.createdAt)}</small>
+    <h3>Fotografías</h3>${evidenceHTML}
+  </article>
+  <article class="panel-card"><h3>Comentarios</h3><div id="commentsList" class="list"><div class="empty-state"><b>Sincronizando comentarios...</b></div></div><form id="commentForm" class="form-grid"><label>Nuevo comentario<textarea id="commentText" required placeholder="Escribe una observación"></textarea></label><button class="btn-primary full" type="submit">Enviar comentario</button><div id="commentMessage" class="message"></div></form></article>`);
+  $('#commentForm').onsubmit = (event) => saveComment(event, reportId);
+  subscribeComments(reportId);
+}
+
+function subscribeComments(reportId) {
+  clearCommentSubscription();
+  const q = query(collection(db, 'comentarios'), where('incidenciaId', '==', reportId));
+  state.commentUnsubscribe = onSnapshot(q, (snapshot) => {
+    state.comments = snapshot.docs.map((docItem) => ({ id: docItem.id, ...docItem.data() }));
+    renderCommentsList();
+  }, (error) => {
+    const box = $('#commentsList');
+    if (box) box.innerHTML = `<div class="empty-state"><b>Error al cargar comentarios.</b><small>${escapeHTML(error.code || error.message)}</small></div>`;
+  });
+}
+
+function renderCommentsList() {
+  const box = $('#commentsList');
+  if (!box) return;
+  const comments = [...state.comments].sort((a, b) => (getDate(a.fecha)?.getTime() || 0) - (getDate(b.fecha)?.getTime() || 0));
+  if (!comments.length) {
+    box.innerHTML = '<div class="empty-state"><b>No hay comentarios todavía.</b><small>Sé el primero en colaborar.</small></div>';
+    return;
+  }
+  box.innerHTML = comments.map((c) => `<article class="item-card"><div><b>${safeText(c.nombreUsuario || c.correoUsuario, 'Usuario')}</b><small>${safeText(c.texto, '')}</small><small>${formatDate(c.fecha)}</small></div></article>`).join('');
+}
+
+async function saveComment(event, reportId) {
+  event.preventDefault();
+  const msg = $('#commentMessage');
+  const text = $('#commentText').value.trim();
+  if (!text) return;
+  msg.className = 'message';
+  msg.textContent = 'Guardando comentario...';
+  try {
+    await addDoc(collection(db, 'comentarios'), {
+      incidenciaId: reportId,
+      texto: text,
+      usuarioId: state.user.uid,
+      correoUsuario: normalizeEmail(state.user.email),
+      nombreUsuario: state.profile?.nombre || state.user.displayName || state.user.email,
+      fecha: serverTimestamp()
+    });
+    await updateDoc(doc(db, 'incidencias', reportId), { comentariosCount: state.comments.length + 1, fechaActualizacion: serverTimestamp() }).catch(() => null);
+    $('#commentText').value = '';
+    msg.className = 'message ok';
+    msg.textContent = 'Comentario publicado.';
+  } catch (error) {
+    msg.className = 'message err';
+    msg.textContent = `Error: ${error.code || error.message}`;
   }
 }
 
@@ -639,7 +962,13 @@ async function toggleAdmin(adminId) {
 }
 
 function exportReportsCsv() {
-  const rows = [['Titulo', 'Descripcion', 'Estado', 'Zona', 'Fecha'], ...getFilteredReports().map((r) => [r.titulo || r.categoria || '', r.descripcion || '', displayStatus(r.estado), r.zona || r.colonia || '', formatDate(r.fecha || r.fechaCreacion)])];
+  const rows = [
+    ['Titulo', 'Descripcion', 'Categoria', 'Estado', 'Departamento', 'Zona', 'Latitud', 'Longitud', 'Fecha'],
+    ...getFilteredReports().map((r) => {
+      const coords = getReportLatLng(r) || ['', ''];
+      return [r.titulo || r.categoria || '', r.descripcion || '', getCategoryLabel(r.categoriaClave || r.categoria), displayStatus(r.estado), r.departamento || '', r.zona || r.colonia || '', coords[0], coords[1], formatDate(r.fecha || r.fechaCreacion)];
+    })
+  ];
   const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
