@@ -133,8 +133,16 @@ function showMessage(container, title, detail = '') {
   container.innerHTML = `<div class="empty-state" style="margin:16px;"><b>${esc(title)}</b>${detail ? `<small>${esc(detail)}</small>` : ''}</div>`;
 }
 
+function cleanReason(reason = '') {
+  const text = clean(reason);
+  if (!text || text.toLowerCase().includes('desactivado')) {
+    return 'Cuando captures una ubicación GPS al crear una incidencia, aparecerá aquí en el mapa.';
+  }
+  return text;
+}
+
 function scheduleFallback(reason = '') {
-  if (reason) state.reason = reason;
+  if (reason) state.reason = cleanReason(reason);
   clearTimeout(state.timer);
   state.timer = setTimeout(renderFallbackMap, 220);
 }
@@ -147,7 +155,7 @@ async function renderFallbackMap() {
   const points = filteredReports().map((item) => ({ item, coords: coords(item) })).filter((entry) => entry.coords);
 
   if (!points.length) {
-    showMessage(container, 'No hay incidencias con GPS para mostrar.', state.reason || 'Google Maps no cargó; se usará mapa alternativo cuando existan ubicaciones.');
+    showMessage(container, 'No hay incidencias con GPS para mostrar.', cleanReason(state.reason));
     return;
   }
 
@@ -225,6 +233,7 @@ onAuthStateChanged(auth, (user) => {
   state.user = user || null;
   state.reports = [];
   state.triedOwnQuery = false;
+  state.reason = '';
   if (state.unsubscribe) state.unsubscribe();
   if (!user) return;
   listenReports(user, false);
