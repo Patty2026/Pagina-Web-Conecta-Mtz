@@ -114,6 +114,18 @@ service cloud.firestore {
       );
     }
 
+    match /comentarios/{comentarioId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.usuarioId == request.auth.uid
+        && request.resource.data.incidenciaId is string
+        && request.resource.data.texto is string;
+      allow update, delete: if signedIn() && (
+        resource.data.usuarioId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+
     match /contadores/{contadorId} {
       allow read: if signedIn();
       allow create, update: if signedIn();
