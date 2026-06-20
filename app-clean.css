@@ -690,60 +690,6 @@ td { color: var(--muted); }
 }
 .onboarding-next-btn:active { transform: scale(.93); }
 
-/* =============================================
-   BOTONES SOCIALES (LOGIN)
-   ============================================= */
-.social-divider {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--muted);
-  font-size: .85rem;
-  margin: 4px 0;
-}
-.social-divider::before,
-.social-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--line);
-}
-
-.social-buttons {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.social-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  min-height: 52px;
-  border-radius: 18px;
-  border: none;
-  font-size: .95rem;
-  font-weight: 700;
-  transition: filter .15s, transform .12s;
-  cursor: pointer;
-}
-.social-btn:active { transform: scale(.97); }
-
-.google-btn {
-  background: #fff;
-  color: #3c4043;
-  border: 1px solid #dadce0;
-  box-shadow: 0 1px 4px rgba(0,0,0,.25);
-}
-.google-btn:hover { filter: brightness(.96); }
-
-.facebook-btn {
-  background: #1877F2;
-  color: #fff;
-}
-.facebook-btn:hover { filter: brightness(1.08); }
-.facebook-btn svg path { fill: #fff; }
 
 /* =============================================
    PANTALLA DE LOGIN / AUTH
