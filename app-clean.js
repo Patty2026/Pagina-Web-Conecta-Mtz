@@ -678,14 +678,102 @@ function openReportForm() {
     <label>Departamento sugerido<select id="reportDepartment"><option value="">Sin asignar</option>${deptOptions}</select></label>
     <label>Colonia o zona<input id="reportZone" placeholder="Colonia, calle o referencia"></label>
     <label>Descripción<textarea id="reportDescription" placeholder="Describe el incidente" required></textarea></label>
-    <label>Fotografías<input id="reportEvidence" type="file" accept="image/*" capture="environment" multiple></label>
-    <div class="actions-row"><button id="captureLocationBtn" class="btn-secondary" type="button">Capturar ubicación GPS</button><span id="locationStatus" class="message">Ubicación pendiente.</span></div>
+
+    <div class="evidence-section">
+      <p class="field-label">📷 Fotografías de evidencia <small>(máx. 2)</small></p>
+      <div class="evidence-buttons">
+        <button type="button" id="btnCamera" class="btn-secondary">📷 Tomar foto</button>
+        <button type="button" id="btnGallery" class="btn-secondary">🖼️ Elegir de galería</button>
+      </div>
+      <input id="reportEvidenceCamera" type="file" accept="image/*" capture="environment" multiple style="display:none">
+      <input id="reportEvidenceGallery" type="file" accept="image/*" multiple style="display:none">
+      <div id="evidencePreview" class="evidence-preview"></div>
+    </div>
+
+    <div class="location-section">
+      <p class="field-label">📍 Ubicación del incidente</p>
+      <div class="evidence-buttons">
+        <button id="captureLocationBtn" class="btn-secondary" type="button">📡 Usar GPS</button>
+        <button id="pickMapBtn" class="btn-secondary" type="button">🗺️ Marcar en mapa</button>
+      </div>
+      <span id="locationStatus" class="message">Ubicación pendiente.</span>
+      <div id="formMiniMap" style="display:none;height:220px;border-radius:16px;overflow:hidden;margin-top:8px;"></div>
+    </div>
+
     <button class="btn-primary full" type="submit">Guardar incidencia</button>
     <div id="reportMessage" class="message"></div>
   </form>`);
+
   $('#captureLocationBtn')?.addEventListener('click', captureLocation);
-  $('#reportEvidence')?.addEventListener('change', handleEvidenceFiles);
+  $('#pickMapBtn')?.addEventListener('click', openFormMap);
+  $('#btnCamera')?.addEventListener('click', () => $('#reportEvidenceCamera')?.click());
+  $('#btnGallery')?.addEventListener('click', () => $('#reportEvidenceGallery')?.click());
+  $('#reportEvidenceCamera')?.addEventListener('change', handleEvidenceFiles);
+  $('#reportEvidenceGallery')?.addEventListener('change', handleEvidenceFiles);
   $('#reportForm')?.addEventListener('submit', saveReport);
+}
+
+function ensureLeafletForForm() {
+  const CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+  const JS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+  return new Promise((resolve, reject) => {
+    if (window.L) return resolve(window.L);
+    if (!document.querySelector(`link[href="${CSS}"]`)) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = CSS;
+      document.head.appendChild(link);
+    }
+    const existing = document.querySelector(`script[src="${JS}"]`);
+    if (existing) { existing.addEventListener('load', () => resolve(window.L)); return; }
+    const script = document.createElement('script');
+    script.src = JS;
+    script.onload = () => resolve(window.L);
+    script.onerror = reject;
+    document.body.appendChild(script);
+  });
+}
+
+async function openFormMap() {
+  const container = $('#formMiniMap');
+  const status = $('#locationStatus');
+  if (!container) return;
+
+  container.style.display = 'block';
+  container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);">Cargando mapa…</div>';
+
+  try {
+    const L = await ensureLeafletForForm();
+    container.innerHTML = '';
+
+    const center = state.pendingLocation
+      ? [state.pendingLocation.lat, state.pendingLocation.lng]
+      : [20.0703, -97.0608];
+
+    const map = L.map(container, { zoomControl: true, attributionControl: false }).setView(center, 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+    let marker = null;
+    if (state.pendingLocation) {
+      marker = L.marker(center).addTo(map).bindPopup('Ubicación actual').openPopup();
+    }
+
+    map.on('click', (event) => {
+      const { lat, lng } = event.latlng;
+      state.pendingLocation = { lat, lng, accuracy: null };
+      if (marker) marker.setLatLng([lat, lng]);
+      else marker = L.marker([lat, lng]).addTo(map);
+      marker.bindPopup('Ubicación seleccionada').openPopup();
+      if (status) {
+        status.className = 'message ok';
+        status.textContent = `Ubicación: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+      }
+    });
+
+    setTimeout(() => map.invalidateSize(), 100);
+  } catch {
+    container.innerHTML = '<div style="padding:16px;color:var(--muted);">No se pudo cargar el mapa. Usa GPS.</div>';
+  }
 }
 
 function captureLocation() {
@@ -717,15 +805,34 @@ async function handleEvidenceFiles(event) {
   const files = Array.from(event.target.files || []).slice(0, 2);
   state.pendingEvidence = [];
   const msg = $('#reportMessage');
-  if (msg) msg.textContent = files.length ? 'Comprimiendo fotografías...' : '';
+  if (msg) { msg.className = 'message'; msg.textContent = files.length ? 'Comprimiendo fotografías...' : ''; }
   for (const file of files) {
     try { state.pendingEvidence.push(await compressImage(file)); }
     catch (error) { console.warn('No se pudo comprimir imagen', error); }
   }
+  renderEvidencePreview();
   if (msg) {
     msg.className = 'message ok';
-    msg.textContent = `${state.pendingEvidence.length} fotografía(s) listas.`;
+    msg.textContent = state.pendingEvidence.length ? `${state.pendingEvidence.length} fotografía(s) listas.` : '';
   }
+}
+
+function renderEvidencePreview() {
+  const preview = $('#evidencePreview');
+  if (!preview) return;
+  if (!state.pendingEvidence.length) { preview.innerHTML = ''; return; }
+  preview.innerHTML = state.pendingEvidence.map((img, index) => `
+    <div class="evidence-thumb">
+      <img src="${img.dataUrl}" alt="Evidencia ${index + 1}">
+      <button type="button" class="evidence-remove" data-index="${index}" aria-label="Eliminar foto">✕</button>
+    </div>
+  `).join('');
+  preview.querySelectorAll('.evidence-remove').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.pendingEvidence.splice(Number(btn.dataset.index), 1);
+      renderEvidencePreview();
+    });
+  });
 }
 
 function compressImage(file) {
