@@ -187,6 +187,8 @@ async function renderFallbackMap() {
     }
 
     state.map = map;
+    // Leaflet necesita recalcular dimensiones después de que el contenedor sea visible
+    setTimeout(() => map.invalidateSize(), 120);
   } catch (error) {
     showMessage(container, 'No se pudo cargar el mapa alternativo.', error?.message || 'Revisa tu conexión a internet.');
   }
