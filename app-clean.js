@@ -1157,10 +1157,85 @@ function exportReportsCsv() {
 }
 
 function openAbout() {
-  openModal('Acerca de ConectaMartínez', `<p>ConectaMartínez permite reportar incidencias urbanas, dar seguimiento, consultar el mapa y apoyar la comunicación ciudadana.</p><p>La app usa Firebase Auth y Firestore para sincronizar datos en tiempo real.</p>`);
+  openModal('Acerca de Conecta Martínez', `
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div style="text-align:center;padding:8px 0 4px;">
+        <div style="font-size:3rem;">🏙️</div>
+        <p style="color:var(--cyan);font-weight:800;margin:6px 0 0;font-size:1.1rem;">Conecta Martínez</p>
+        <p style="color:var(--muted);margin:4px 0 0;font-size:.9rem;font-style:italic;">"Juntos resolvemos más"</p>
+      </div>
+      <p style="color:var(--text);line-height:1.6;">Plataforma ciudadana digital para reportar, consultar y dar seguimiento a incidencias urbanas en <b>Martínez de la Torre, Veracruz</b>.</p>
+      <div style="display:grid;gap:10px;">
+        <div style="background:rgba(46,168,255,.1);border:1px solid rgba(46,168,255,.3);border-radius:16px;padding:14px;">
+          <b style="color:var(--blue);">📍 Reporta incidencias</b>
+          <p style="color:var(--muted);margin:4px 0 0;font-size:.9rem;">Baches, alumbrado, fugas de agua, basura, áreas verdes y más, con foto y ubicación GPS.</p>
+        </div>
+        <div style="background:rgba(168,85,247,.1);border:1px solid rgba(168,85,247,.3);border-radius:16px;padding:14px;">
+          <b style="color:var(--purple);">📊 Seguimiento en tiempo real</b>
+          <p style="color:var(--muted);margin:4px 0 0;font-size:.9rem;">Consulta el estado de cada reporte: Pendiente, En revisión, En proceso o Resuelto.</p>
+        </div>
+        <div style="background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.3);border-radius:16px;padding:14px;">
+          <b style="color:var(--green);">🗺️ Mapa comunitario</b>
+          <p style="color:var(--muted);margin:4px 0 0;font-size:.9rem;">Visualiza todas las incidencias activas en el mapa de tu municipio.</p>
+        </div>
+      </div>
+      <p style="color:var(--muted);font-size:.82rem;text-align:center;margin:4px 0 0;">Versión 2026 · Desarrollado con Firebase y tecnologías web abiertas.</p>
+    </div>
+  `);
+}
+
+function initCarousel() {
+  const track = document.getElementById('incidentCarousel');
+  const dotsContainer = document.getElementById('carouselDots');
+  if (!track || !dotsContainer) return;
+
+  const slides = Array.from(track.children);
+  let current = 0;
+  let autoTimer = null;
+  let touchStartX = 0;
+
+  // Crear dots
+  dotsContainer.innerHTML = slides.map((_, i) =>
+    `<button class="carousel-dot${i === 0 ? ' active' : ''}" data-i="${i}" aria-label="Slide ${i + 1}" type="button"></button>`
+  ).join('');
+
+  function goTo(index) {
+    current = (index + slides.length) % slides.length;
+    track.style.transform = `translateX(-${current * 100}%)`;
+    dotsContainer.querySelectorAll('.carousel-dot').forEach((dot, i) =>
+      dot.classList.toggle('active', i === current)
+    );
+  }
+
+  function startAuto() {
+    clearInterval(autoTimer);
+    autoTimer = setInterval(() => goTo(current + 1), 3200);
+  }
+
+  // Touch / swipe
+  track.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
+  track.addEventListener('touchend', e => {
+    const diff = touchStartX - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 40) {
+      goTo(current + (diff > 0 ? 1 : -1));
+      startAuto();
+    }
+  }, { passive: true });
+
+  // Click en dots
+  dotsContainer.addEventListener('click', e => {
+    const dot = e.target.closest('.carousel-dot');
+    if (!dot) return;
+    goTo(Number(dot.dataset.i));
+    startAuto();
+  });
+
+  goTo(0);
+  startAuto();
 }
 
 function setupEvents() {
+  initCarousel();
   dom.startBtn?.addEventListener('click', () => { setAuthMode('login'); showScreen('auth'); });
   dom.aboutBtn?.addEventListener('click', openAbout);
   dom.toggleAuthBtn?.addEventListener('click', () => setAuthMode(state.authMode === 'login' ? 'register' : 'login'));

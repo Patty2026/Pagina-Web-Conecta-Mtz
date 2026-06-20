@@ -14,18 +14,59 @@
 </head>
 <body>
   <main id="app" class="app">
-    <section id="welcomeScreen" class="screen active">
-      <div class="logo-box">
-        <img src="./logo-conecta-martinez.png" alt="Conecta Martínez" />
-        <small>Juntos resolvemos más</small>
+    <section id="welcomeScreen" class="screen welcome-screen active">
+      <!-- Decoraciones de fondo -->
+      <div class="welcome-orb welcome-orb-1"></div>
+      <div class="welcome-orb welcome-orb-2"></div>
+
+      <!-- Logo y slogan -->
+      <div class="welcome-hero">
+        <img src="./logo-conecta-martinez.png" alt="Conecta Martínez" class="welcome-logo-img" />
+        <h1 class="welcome-app-name">Conecta<br>Martínez</h1>
+        <p class="welcome-slogan">✨ Juntos resolvemos más</p>
       </div>
-      <div class="hero-card">
-        <h1>¡Bienvenido!</h1>
-        <p>Reporta, consulta y da seguimiento a incidencias urbanas de Martínez de la Torre.</p>
-        <div class="actions-row">
-          <button id="startBtn" class="btn-primary full" type="button">Comenzar</button>
-          <button id="aboutBtn" class="btn-secondary full" type="button">Acerca de ConectaMartínez</button>
+
+      <!-- Carrusel de incidencias -->
+      <div class="carousel-wrap">
+        <div class="carousel-track" id="incidentCarousel">
+          <div class="carousel-slide">
+            <div class="slide-icon">🕳️</div>
+            <h3>Baches y vialidades</h3>
+            <p>Reporta baches, grietas o daños en calles y avenidas para agilizar su reparación.</p>
+          </div>
+          <div class="carousel-slide">
+            <div class="slide-icon">💡</div>
+            <h3>Alumbrado público</h3>
+            <p>Notifica luminarias apagadas, cables sueltos o postes dañados en tu colonia.</p>
+          </div>
+          <div class="carousel-slide">
+            <div class="slide-icon">💧</div>
+            <h3>Fugas de agua</h3>
+            <p>Señala fugas, tuberías rotas o problemas con el suministro de agua potable.</p>
+          </div>
+          <div class="carousel-slide">
+            <div class="slide-icon">🗑️</div>
+            <h3>Recolección de basura</h3>
+            <p>Reporta acumulaciones, tiraderos clandestinos o falta de recolección en tu zona.</p>
+          </div>
+          <div class="carousel-slide">
+            <div class="slide-icon">🌳</div>
+            <h3>Áreas verdes</h3>
+            <p>Informa sobre parques descuidados, árboles caídos o zonas sin mantenimiento.</p>
+          </div>
+          <div class="carousel-slide">
+            <div class="slide-icon">⚠️</div>
+            <h3>Seguridad y riesgos</h3>
+            <p>Alerta sobre infraestructura peligrosa, zonas inseguras o situaciones de riesgo.</p>
+          </div>
         </div>
+        <div class="carousel-dots" id="carouselDots"></div>
+      </div>
+
+      <!-- Botones de acción -->
+      <div class="welcome-actions">
+        <button id="startBtn" class="btn-primary full welcome-start-btn" type="button">Comenzar</button>
+        <button id="aboutBtn" class="btn-ghost full" type="button">Acerca de la App</button>
       </div>
     </section>
 
