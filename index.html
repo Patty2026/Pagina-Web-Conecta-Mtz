@@ -7,8 +7,7 @@
   <meta name="description" content="Aplicación ciudadana para reportes, seguimiento y apoyo comunitario en Martínez de la Torre." />
   <meta name="theme-color" content="#07133c" />
   <link rel="icon" href="./logo-conecta-martinez.png" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIINfQ7kZ2h22o2GfLqjTSTxyXwD4sZ8m2E=" crossorigin="" />
-  <link rel="stylesheet" href="./app-clean.css?v=20260619-gps-comments-map" />
+  <link rel="stylesheet" href="./app-clean.css?v=202606-google-maps" />
 </head>
 <body>
   <main class="app" id="appRoot">
@@ -106,21 +105,10 @@
       </div>
       <div id="modalBody"></div>
     </article>
-   <div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-    <article class="modal-card">
-      <div class="status-line">
-        <h3 id="modalTitle">Detalle</h3>
-        <button id="closeModalBtn" class="btn-secondary" type="button">Cerrar</button>
-      </div>
-      <div id="modalBody"></div>
-    </article>
   </div>
 
-  <script
-    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyArAW7ori6d5DpHW3lMEvLDl8q0iQl7spc&libraries=places"
-    defer>
-  </script>
-
-  <script type="module" src="./app-clean.js?v=google-maps"></script>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyArAW7ori6d5DpHW3lMEvLDl8q0iQl7spc&libraries=places" defer></script>
+  <script type="module" src="./app-clean.js?v=202606-google-maps"></script>
+  <script type="module" src="./google-maps-adapter.js?v=202606-google-maps"></script>
 </body>
 </html>
